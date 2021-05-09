@@ -43,19 +43,27 @@ func main() {
 		}
 		//Check result to make sure it's a legit request, then parse in relevant information (operation, file name/path) 
 		message := scanner.Text()
+		if message == "exit" {
+			break
+		}
 		queryList := strings.Split(message, " ")
+
 		if len(queryList) != 2 {
 			fmt.Println("Incorrect request format! Example format:")
 			fmt.Println("  - put filename")
 			fmt.Println("  - get filename")
 			fmt.Println("  - delete filename")
 			fmt.Println("  - search [string]/[empty space]")
+			continue
 		}
 		operation := queryList[0]
 		if !strings.EqualFold(operation, "put") && !strings.EqualFold(operation, "get") && !strings.EqualFold(operation, "delete") && !strings.EqualFold(operation, "search") {
 			fmt.Println("Invalid request! Allowable requests: put, get, delete, search")
+			continue
 		}
 		fileInfo := queryList[1]
+
+		fmt.Println(fileInfo)
 
 		msgBytes := make([]byte, 128)
 		copy(msgBytes, message)
