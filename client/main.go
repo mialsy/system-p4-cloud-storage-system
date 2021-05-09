@@ -6,7 +6,6 @@ This file lets users make requests about different file storage operations inclu
 - search file
 User's inputs should include the following:
 - operation (put/ get/ delete/ search)
-- host name: port number
 - file name (optional for search, path to file for put)
 */
 package main
@@ -21,39 +20,45 @@ import (
 )
 
 func main() {
-	scanner := bufio.NewScanner(os.Stdin)
+	argv := os.Args
+	if len(argv) != 2 {
+		fmt.Println("Incorrect number of arguments!")
+		fmt.Println("Usage: ./client hostname:portnumber")
+		return
+	}
+
+	conn, err := net.Dial("tcp", argv[1])
+	if err != nil {
+		log.Fatalln(err.Error())
+		return
+	}
+	defer conn.Close()
+
 	for {
+		scanner := bufio.NewScanner(os.Stdin)
 		fmt.Print("Storj>>> ")
 		result := scanner.Scan()
 		if result == false {
 			break
 		}
-		//Check result to make sure it's a legit request, then parse in relevant information (operation, host name, port number, file name/path 
-			// -- probably use enum here for different kind of messages to store relevant information?)
+		//Check result to make sure it's a legit request, then parse in relevant information (operation, file name/path) 
 		message := scanner.Text()
 		queryList := strings.Split(message, " ")
-		if len(queryList) != 3 {
+		if len(queryList) != 2 {
 			fmt.Println("Incorrect request format! Example format:")
-			fmt.Println("  - put hostname:portnumber filename")
-			fmt.Println("  - get hostname:portnumber filename")
-			fmt.Println("  - delete hostname:portnumber filename")
-			fmt.Println("  - search hostname:portnumber [string]/[empty space]")
+			fmt.Println("  - put filename")
+			fmt.Println("  - get filename")
+			fmt.Println("  - delete filename")
+			fmt.Println("  - search [string]/[empty space]")
 		}
 		operation := queryList[0]
 		if !strings.EqualFold(operation, "put") && !strings.EqualFold(operation, "get") && !strings.EqualFold(operation, "delete") && !strings.EqualFold(operation, "search") {
 			fmt.Println("Invalid request! Allowable requests: put, get, delete, search")
 		}
-		serverInfo := queryList[1]
-		if !strings.Contains(serverInfo, ":") {
-			fmt.Println("Missing port number")
-		}
-		fileInfo := queryList[2]
+		fileInfo := queryList[1]
 
-		conn, err := net.Dial("tcp", serverInfo)
-		if err != nil {
-			log.Fatalln(err.Error())
-			return
-		}
-		defer conn.Close()
+		msgBytes := make([]byte, 128)
+		copy(msgBytes, message)
+		conn.Write(msgBytes)
 	} 
 }
