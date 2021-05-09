@@ -39,11 +39,6 @@ func main() {
 		return
 	}
 
-	// defaultServer := "192.168.122.201:9998"
-	// if strings.EqualFold(defaultServer, argv[1]) {
-	// 	defaultServer = "192.168.122.203:9998"
-	// }
-
 	fmt.Println(backupServer)
 
 	for {
