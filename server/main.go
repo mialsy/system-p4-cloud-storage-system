@@ -24,22 +24,22 @@ import (
 
 func main() {
 	argv := os.Args
-	if len(argv) != 2 {
+	if len(argv) != 3 {
 		fmt.Println("Incorrect number of arguments!")
-		fmt.Println("Usage: ./server hostname:portnumber")
+		fmt.Println("Usage: ./server hostname:portnumber backup_hostname:portnumber")
 		return
 	}
 
-	listener, err := net.Listen("tcp", argv[1])
+	defaultServer := argv[1]
+	backupServer := argv[2]
+
+	listener, err := net.Listen("tcp", defaultServer)
 	if err != nil {
 		log.Fatalln(err.Error())
 		return
 	}
 
-	defaultServer := "192.168.122.201:9998"
-	if strings.EqualFold(defaultServer, argv[1]) {
-		defaultServer := "192.168.122.203:9998"
-	}
+	fmt.Println(backupServer)
 
 	for {
 		if conn, err := listener.Accept(); err == nil {
@@ -62,5 +62,9 @@ func handleConnection(conn net.Conn) {
 		queryList := strings.Split(string(message), " ")
 		operation := queryList[0]
 		fileInfo := queryList[1]
+
+		fmt.Println(queryList)
+		fmt.Println(operation)
+		fmt.Println(fileInfo)
 	}
 }
