@@ -13,9 +13,11 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -28,10 +30,7 @@ func main() {
 	}
 
 	conn, err := net.Dial("tcp", argv[1])
-	if err != nil {
-		log.Fatalln(err.Error())
-		return
-	}
+	check(err)
 	defer conn.Close()
 
 	for {
@@ -63,10 +62,27 @@ func main() {
 		}
 		fileInfo := queryList[1]
 
-		fmt.Println(fileInfo)
+		if strings.EqualFold(operation, "put") {
+			file, err := os.OpenFile(fileInfo, os.O_RDONLY, 0666)
+			check(err)
+			defer file.Close()
 
-		msgBytes := make([]byte, 128)
-		copy(msgBytes, message)
-		conn.Write(msgBytes)
+			stat, err := file.Stat()
+			check(err)
+			fileSize := stat.Size()
+			message += " " + strconv.Itoa(int(fileSize))
+			msgBytes := make([]byte, 128)
+			copy(msgBytes, message)
+			conn.Write(msgBytes)
+			
+			io.Copy(conn, file)
+		}
 	} 
+}
+
+func check(err error) {
+	if err != nil {
+		log.Fatalln(err.Error())
+		return
+	}
 }
