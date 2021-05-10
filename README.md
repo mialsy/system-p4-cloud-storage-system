@@ -1,5 +1,37 @@
-# Project 4: Cloud Storage
+# **Project 4: Cloud Storage**
 
-See project spec here: https://www.cs.usfca.edu/~mmalensek/cs521/assignments/project-4.html
+Author: Anh Nguyen, Chuxi Wang
 
-You have quite a bit of freedom in this project, so be sure to write about your design here and explain how to use your system.
+## **Project Description**
+
+In this project, we are building a cloud storage system, `Storj`, similar to Dropbox or Google Drive.
+
+### **Program Overview**
+
+The program has 2 components:
+
+- Client: sends requests to any of the 2 supported storage servers by supplying the storage server's hostname and port as command line options
+- Storage server: 2 are supported to handle requests from multiple clients, replicate files to the other server, detect and handle file corruption
+
+The program supports the following requests:
+
+- Storage: clients can put any type of files to `Storj`
+- Retrieval: clients can get files from `Storj` as well as search and list the files in the system
+
+### **Program Output**
+
+- Put Operation
+
+- Get Operation
+
+- Delete Operation
+
+- Search Operation
+
+### **Included Files**
+
+Following is the list of files included:
+
+- **client/main.go**:
+- **server/main.go**:
+- **Makefile**:
