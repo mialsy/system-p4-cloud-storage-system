@@ -16,6 +16,8 @@ package main
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"log"
@@ -48,6 +50,11 @@ func main() {
 	}
 }
 
+/*
+Function to handle different operation requests from client: put, get, delete, and search. 
+Also establish connection with backup server to replicate the same operation on the backup server 
+and detect and handle file corruption 
+*/
 func handleConnection(conn net.Conn) {
 	defer conn.Close()
 
@@ -61,20 +68,51 @@ func handleConnection(conn net.Conn) {
 		operation := queryList[0]
 		fileInfo := queryList[1]
 
+		fileHash := make(map[string]string) // Map to store a file checksum 
+
+		// Put operation: store received files in "storj" folder, if file already exist then reject the request 
 		if strings.EqualFold(operation, "put") {
 			fileSize := queryList[2]
 			filePath := strings.Split(fileInfo, "/")
-			fileName := filePath[len(filePath) - 1]	
-			file, err := os.OpenFile(fileName, os.O_CREATE | os.O_TRUNC | os.O_RDWR, 0666)
-			check(err)
-			defer file.Close()
-			n, err := strconv.ParseInt(fileSize, 10, 64)
-			check(err)
-			io.CopyN(file, conn, n)
+			if _, err := os.Stat("./storj"); os.IsNotExist(err) {
+    			os.Mkdir("./storj", 0755)
+			}
+			fileName := "./storj/" + filePath[len(filePath) - 1]	
+
+			if _, err := os.Stat(fileName); err == nil {
+				fmt.Println("The file already exists. Please delete the file if you still want to proceed with the operation.")
+			} else {
+				// Store the file
+				file, err := os.OpenFile(fileName, os.O_CREATE | os.O_TRUNC | os.O_RDWR, 0666)
+				check(err)
+				defer file.Close()
+				n, err := strconv.ParseInt(fileSize, 10, 64)
+				check(err)
+				if _, err := io.CopyN(file, conn, n); err != nil {
+					log.Fatalln(err.Error())
+					return
+				}
+				
+				// Hash the file 
+				fileCheck, err := os.OpenFile(fileName, os.O_RDONLY, 0666)
+				check(err)
+				defer fileCheck.Close()
+				hasher := sha256.New()
+				if _, err := io.Copy(hasher, fileCheck); err != nil {
+					log.Fatalln(err.Error())
+					return
+				}
+				value := hex.EncodeToString(hasher.Sum(nil))
+				fileHash[fileName] = value
+				fmt.Println(fileHash)
+			}
 		}
 	}
 }
 
+/*
+Function to handle error by logging error message
+*/
 func check(err error) {
 	if err != nil {
 		log.Fatalln(err.Error())

@@ -8,6 +8,7 @@ User's inputs should include the following:
 - operation (put/ get/ delete/ search)
 - file name (optional for search, path to file for put)
 */
+
 package main
 
 import (
@@ -40,7 +41,7 @@ func main() {
 		if result == false {
 			break
 		}
-		//Check result to make sure it's a legit request, then parse in relevant information (operation, file name/path) 
+		// Check result to make sure it's a legit request, then parse in relevant information (operation, file name/path) 
 		message := scanner.Text()
 		if message == "exit" {
 			break
@@ -55,6 +56,7 @@ func main() {
 			fmt.Println("  - search [string]/[empty space]")
 			continue
 		}
+
 		operation := queryList[0]
 		if !strings.EqualFold(operation, "put") && !strings.EqualFold(operation, "get") && !strings.EqualFold(operation, "delete") && !strings.EqualFold(operation, "search") {
 			fmt.Println("Invalid request! Allowable requests: put, get, delete, search")
@@ -62,6 +64,7 @@ func main() {
 		}
 		fileInfo := queryList[1]
 
+		// Put operation: open file and find file size information, append size to message header and send message header to server, then send file
 		if strings.EqualFold(operation, "put") {
 			file, err := os.OpenFile(fileInfo, os.O_RDONLY, 0666)
 			check(err)
@@ -75,11 +78,17 @@ func main() {
 			copy(msgBytes, message)
 			conn.Write(msgBytes)
 			
-			io.Copy(conn, file)
+			if _, err := io.Copy(conn, file); err != nil {
+				log.Fatalln(err.Error())
+				return
+			}
 		}
 	} 
 }
 
+/*
+Function to handle error by logging error message
+*/
 func check(err error) {
 	if err != nil {
 		log.Fatalln(err.Error())
