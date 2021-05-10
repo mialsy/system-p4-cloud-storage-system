@@ -35,10 +35,7 @@ func main() {
 	backupServer := argv[2]
 
 	listener, err := net.Listen("tcp", defaultServer)
-	if err != nil {
-		log.Fatalln(err.Error())
-		return
-	}
+	check(err)
 
 	fmt.Println(backupServer)
 
