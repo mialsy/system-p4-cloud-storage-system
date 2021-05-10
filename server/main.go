@@ -55,10 +55,8 @@ func handleConnection(conn net.Conn) {
 		// Receive message from client and parse relevant information 
 		message := make([]byte, 128)
 		_, err := conn.Read(message)
-		if err != nil {
-			log.Println(err.Error())
-			break
-		}
+		check(err)
+		message = bytes.Trim(message, "\x00")
 		queryList := strings.Split(string(message), " ")
 		operation := queryList[0]
 		fileInfo := queryList[1]
@@ -66,5 +64,12 @@ func handleConnection(conn net.Conn) {
 		fmt.Println(queryList)
 		fmt.Println(operation)
 		fmt.Println(fileInfo)
+	}
+}
+
+func check(err error) {
+	if err != nil {
+		log.Fatalln(err.Error())
+		return
 	}
 }
