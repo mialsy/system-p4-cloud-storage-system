@@ -28,10 +28,7 @@ func main() {
 	}
 
 	conn, err := net.Dial("tcp", argv[1])
-	if err != nil {
-		log.Fatalln(err.Error())
-		return
-	}
+	check(err)
 	defer conn.Close()
 
 	for {
@@ -69,4 +66,11 @@ func main() {
 		copy(msgBytes, message)
 		conn.Write(msgBytes)
 	} 
+}
+
+func check(err error) {
+	if err != nil {
+		log.Fatalln(err.Error())
+		return
+	}
 }
