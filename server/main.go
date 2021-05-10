@@ -16,6 +16,7 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net"
 	"os"
@@ -59,12 +60,38 @@ func handleConnection(conn net.Conn) {
 			log.Println(err.Error())
 			break
 		}
-		queryList := strings.Split(string(message), " ")
+		queryList := strings.Split(strings.Trim(string(message), "\x00"), " ")
 		operation := queryList[0]
 		fileInfo := queryList[1]
 
 		fmt.Println(queryList)
 		fmt.Println(operation)
 		fmt.Println(fileInfo)
+
+		if operation == "search" {
+			searchRes := handleSearch(fileInfo)
+			fmt.Println(string(searchRes))
+		}
 	}
+}
+
+func handleSearch(fileInfo string) []byte{
+	files, err := ioutil.ReadDir("./")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	res := make([]byte, 0)
+	for _, f := range(files) {
+
+		fname := f.Name()
+		fmt.Println(strings.Index(fname, fileInfo))
+		if strings.Index(f.Name(), fileInfo) != -1 {
+			if len(res) != 0 {
+				res = append(res, ", "...)
+			}
+			res = append(res, f.Name()...) 
+		}
+	}
+	return res
 }
