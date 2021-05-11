@@ -30,6 +30,7 @@ import (
 
 const storj = "./storj"
 const checkFile = "checkFile.txt"
+var bconn net.Conn = nil
 
 func main() {
 	argv := os.Args
@@ -39,7 +40,7 @@ func main() {
 		return
 	}
 
-	fileHash := make(map[string]string) // Map to store a file checksum 
+	fileHash := make(map[string]string) // Map to store a file checksum
 	// Read checkFile to a map
 	if _, err := os.Stat(checkFile); err == nil {
 		file, err := os.OpenFile(checkFile, os.O_RDONLY, 0666)
@@ -60,41 +61,55 @@ func main() {
 
 	for {
 		if conn, err := listener.Accept(); err == nil {
+			if bconn == nil {
+				connectBackup(backupServer)
+			}
 			go handleConnection(conn, backupServer, fileHash)
 		}
 	}
 }
 
+func connectBackup(backupServer string) {
+	fmt.Println("i am here")
+	var err error
+
+	bconn, err = net.Dial("tcp", backupServer)
+
+	if err != nil {
+		fmt.Println(err.Error())
+	}
+}
+
 /*
-Function to handle different operation requests from client: put, get, delete, and search. 
-Also establish connection with backup server to replicate the same operation on the backup server 
-and detect and handle file corruption 
+Function to handle different operation requests from client: put, get, delete, and search.
+Also establish connection with backup server to replicate the same operation on the backup server
+and detect and handle file corruption
 */
 func handleConnection(conn net.Conn, backupServer string, fileHash map[string]string) {
+	fmt.Println("I am handle connection")
 
 	defer conn.Close()
 
 	for {
-		bconn, err := net.Dial("tcp", backupServer)
-		if err != nil {
-			check(err)
-			continue
-		}
-
-		defer bconn.Close()
-		
 		// Receive message from client
 		decoder := gob.NewDecoder(conn)
 		msg := &message.Message{}
 		decoder.Decode(msg)
 
-		// Send same message to backup server
-		if msg.CopyRemain > 0 && err == nil{
-			msg.CopyRemain -= 1
-			msg.Send(bconn)
-		}
-
 		if strings.EqualFold(msg.Operation, "put") {
+			// Send same message to backup server
+			fmt.Println(msg.CopyRemain)
+			if msg.CopyRemain > 0 {
+				if bconn == nil {
+					fmt.Println("backup off")
+					connectBackup(backupServer)
+					continue
+				}
+				defer bconn.Close()
+				fmt.Println("send message")
+				msg.CopyRemain -= 1
+				msg.Send(bconn)
+			}
 			handlePut(msg, conn, fileHash)
 		}
 	}
@@ -111,7 +126,7 @@ func check(err error) {
 }
 
 /*
-Function to handle put operation: store received files in "storj" folder, if file already exist then reject the request 
+Function to handle put operation: store received files in "storj" folder, if file already exist then reject the request
 */
 func handlePut(msg *message.Message, conn net.Conn, fileHash map[string]string) {
 	fileSize := msg.FileSize
@@ -119,13 +134,14 @@ func handlePut(msg *message.Message, conn net.Conn, fileHash map[string]string) 
 	if _, err := os.Stat(storj); os.IsNotExist(err) {
 		os.Mkdir(storj, 0755)
 	}
-	fileName := storj + "/" + filePath[len(filePath) - 1]	
+
+	fileName := storj + "/" + filePath[len(filePath)-1]
 
 	if _, err := os.Stat(fileName); err == nil {
 		fmt.Println("The file already exists. Please delete the file if you still want to proceed with the operation.")
 	} else {
 		// Store the file
-		file, err := os.OpenFile(fileName, os.O_CREATE | os.O_TRUNC | os.O_RDWR, 0666)
+		file, err := os.OpenFile(fileName, os.O_CREATE|os.O_TRUNC|os.O_RDWR, 0666)
 		check(err)
 		defer file.Close()
 
@@ -133,8 +149,8 @@ func handlePut(msg *message.Message, conn net.Conn, fileHash map[string]string) 
 			log.Fatalln(err.Error())
 			return
 		}
-		
-		// Hash the file 
+
+		// Hash the file
 		fileCheck, err := os.OpenFile(fileName, os.O_RDONLY, 0666)
 		check(err)
 		defer fileCheck.Close()
@@ -145,7 +161,7 @@ func handlePut(msg *message.Message, conn net.Conn, fileHash map[string]string) 
 		}
 		value := hex.EncodeToString(hasher.Sum(nil))
 		fileHash[fileName] = value
-		fileStored, err := os.OpenFile(checkFile, os.O_APPEND | os.O_CREATE | os.O_WRONLY, 0644)
+		fileStored, err := os.OpenFile(checkFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 		check(err)
 		defer fileStored.Close()
 		line := fileName + " " + value + "\n"
