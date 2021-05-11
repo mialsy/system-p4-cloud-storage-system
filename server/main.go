@@ -58,12 +58,9 @@ func main() {
 	listener, err := net.Listen("tcp", defaultServer)
 	check(err)
 
-	bconn, err := net.Dial("tcp", backupServer)
-	// check(err)
-
 	for {
 		if conn, err := listener.Accept(); err == nil {
-			go handleConnection(conn, bconn, fileHash)
+			go handleConnection(conn, backupServer, fileHash)
 		}
 	}
 }
@@ -73,20 +70,29 @@ Function to handle different operation requests from client: put, get, delete, a
 Also establish connection with backup server to replicate the same operation on the backup server 
 and detect and handle file corruption 
 */
-func handleConnection(conn net.Conn, bconn net.Conn, fileHash map[string]string) {
+func handleConnection(conn net.Conn, backupServer string, fileHash map[string]string) {
+
 	defer conn.Close()
 
 	for {
+		bconn, err := net.Dial("tcp", backupServer)
+		if err != nil {
+			check(err)
+			continue
+		}
+
+		defer bconn.Close()
+		
 		// Receive message from client
 		decoder := gob.NewDecoder(conn)
 		msg := &message.Message{}
 		decoder.Decode(msg)
 
 		// Send same message to backup server
-		// if msg.CopyRemain > 0 {
-		// 	msg.CopyRemain -= 1
-		// 	msg.Send(bconn)
-		// }
+		if msg.CopyRemain > 0 && err == nil{
+			msg.CopyRemain -= 1
+			msg.Send(bconn)
+		}
 
 		if strings.EqualFold(msg.Operation, "put") {
 			handlePut(msg, conn, fileHash)
