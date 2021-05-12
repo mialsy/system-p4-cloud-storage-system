@@ -95,19 +95,7 @@ func handleConnection(conn net.Conn, backupServer string, fileHash map[string]st
 
 		if strings.EqualFold(msg.Operation, "put") {
 			// Send same message to backup server
-			fmt.Println(msg.CopyRemain)
-			if msg.CopyRemain > 0 {
-				bconn := connectBackup(backupServer)
-				if bconn == nil {
-					fmt.Println("backup off")
-					continue
-				}
-				defer bconn.Close()
-				fmt.Println("send message")
-				msg.CopyRemain -= 1
-				msg.Send(bconn)
-			}
-			handlePut(msg, conn, fileHash)
+			handlePut(msg, conn, backupServer, fileHash)
 		}
 	}
 }
@@ -125,7 +113,19 @@ func check(err error) {
 /*
 Function to handle put operation: store received files in "storj" folder, if file already exist then reject the request
 */
-func handlePut(msg *message.Message, conn net.Conn, fileHash map[string]string) {
+func handlePut(msg *message.Message, conn net.Conn, backupServer string, fileHash map[string]string) bool{
+
+	if msg.CopyRemain > 0 {
+		bconn := connectBackup(backupServer)
+		if bconn == nil {
+			fmt.Println("backup off")
+			return false
+		}
+		defer bconn.Close()
+		fmt.Println("send message")
+		msg.CopyRemain -= 1
+		msg.Send(bconn)
+	}
 	fileSize := msg.FileSize
 	filePath := strings.Split(msg.FileName, "/")
 	if _, err := os.Stat(storj); os.IsNotExist(err) {
@@ -144,7 +144,7 @@ func handlePut(msg *message.Message, conn net.Conn, fileHash map[string]string) 
 
 		if _, err := io.CopyN(file, conn, fileSize); err != nil {
 			log.Fatalln(err.Error())
-			return
+			return false
 		}
 
 		// Hash the file
@@ -154,7 +154,7 @@ func handlePut(msg *message.Message, conn net.Conn, fileHash map[string]string) 
 		hasher := sha256.New()
 		if _, err := io.Copy(hasher, fileCheck); err != nil {
 			log.Fatalln(err.Error())
-			return
+			return false
 		}
 		value := hex.EncodeToString(hasher.Sum(nil))
 		fileHash[fileName] = value
@@ -165,4 +165,5 @@ func handlePut(msg *message.Message, conn net.Conn, fileHash map[string]string) 
 		fileStored.WriteString(line)
 		fmt.Println("File stored in Storj")
 	}
+	return true
 }
