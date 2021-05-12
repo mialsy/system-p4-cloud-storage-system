@@ -24,6 +24,8 @@ func New(operation string, fileName string) *Message {
 
 /*
 Function to send Message over the network
+@param conn: the connection
+@return: error message
 */
 func (m *Message) Send(conn net.Conn) error {
 	encoder := gob.NewEncoder(conn)

@@ -65,22 +65,13 @@ func main() {
 	}
 }
 
-func connectBackup(backupServer string) net.Conn{
-	fmt.Println("i am here")
-
-	bconn, err := net.Dial("tcp", backupServer)
-
-	if err != nil {
-		fmt.Println(err.Error())
-		return nil
-	}
-	return bconn
-}
-
 /*
 Function to handle different operation requests from client: put, get, delete, and search.
 Also establish connection with backup server to replicate the same operation on the backup server
 and detect and handle file corruption
+@param conn: the connection
+@param backupServer: hostname and port number of the backup server
+@param fileHash: map to store file name and its checksum value
 */
 func handleConnection(conn net.Conn, backupServer string, fileHash map[string]string) {
 	fmt.Println("I am handle connection")
@@ -94,26 +85,14 @@ func handleConnection(conn net.Conn, backupServer string, fileHash map[string]st
 		decoder.Decode(msg)
 
 		if strings.EqualFold(msg.Operation, "put") {
-			// Send same message to backup server
-			fmt.Println(msg.CopyRemain)
-			if msg.CopyRemain > 0 {
-				bconn := connectBackup(backupServer)
-				if bconn == nil {
-					fmt.Println("backup off")
-					continue
-				}
-				defer bconn.Close()
-				fmt.Println("send message")
-				msg.CopyRemain -= 1
-				msg.Send(bconn)
-			}
-			handlePut(msg, conn, fileHash)
+			handlePut(msg, conn, backupServer, fileHash)
 		}
 	}
 }
 
 /*
 Function to handle error by logging error message
+@param err: the error being checked
 */
 func check(err error) {
 	if err != nil {
@@ -124,27 +103,60 @@ func check(err error) {
 
 /*
 Function to handle put operation: store received files in "storj" folder, if file already exist then reject the request
+@param msg: message sent from client side
+@param conn: the connection
+@param fileHash: map to store file name and its checksum value
 */
-func handlePut(msg *message.Message, conn net.Conn, fileHash map[string]string) {
-	fileSize := msg.FileSize
+func handlePut(msg *message.Message, conn net.Conn, backupServer string, fileHash map[string]string) bool {
+
+	defer conn.Close()
+
+	fmt.Println("handling put")
 	filePath := strings.Split(msg.FileName, "/")
 	if _, err := os.Stat(storj); os.IsNotExist(err) {
 		os.Mkdir(storj, 0755)
 	}
+	fileName := storj + "/" + filePath[len(filePath) - 1]
 
-	fileName := storj + "/" + filePath[len(filePath)-1]
-
-	if _, err := os.Stat(fileName); err == nil {
-		fmt.Println("The file already exists. Please delete the file if you still want to proceed with the operation.")
+	fmt.Println(fileName)
+	val, present := fileHash[fileName]
+	fmt.Println(fileHash)
+	if present && !strings.EqualFold(val, "deleted") {
+		fmt.Println("File already exists. Please delete the file to proceed with the operation.")
 	} else {
 		// Store the file
-		file, err := os.OpenFile(fileName, os.O_CREATE|os.O_TRUNC|os.O_RDWR, 0666)
+		fmt.Println("storing file")
+		file, err := os.OpenFile(fileName, os.O_CREATE | os.O_TRUNC | os.O_RDWR, 0666)
 		check(err)
 		defer file.Close()
 
-		if _, err := io.CopyN(file, conn, fileSize); err != nil {
+		if _, err := io.CopyN(file, conn, msg.FileSize); err != nil {
 			log.Fatalln(err.Error())
-			return
+			return false
+		}
+
+		// Send same message to backup server
+		fmt.Println(msg.CopyRemain)
+		if msg.CopyRemain > 0 {
+			bconn := connectBackup(backupServer)
+			if bconn == nil {
+				fmt.Println("backup off")
+				return false
+			}
+			defer bconn.Close()
+			fmt.Println("send message")
+			msg.CopyRemain -= 1
+			msg.Send(bconn)
+
+			fileCopy, err := os.OpenFile(fileName, os.O_RDONLY, 0666)
+			check(err)
+			defer fileCopy.Close()
+
+			if _, err := io.Copy(bconn, fileCopy); err != nil {
+				log.Fatalln(err.Error())
+				return false
+			}
+
 		}
 
 		// Hash the file
@@ -154,15 +166,29 @@ func handlePut(msg *message.Message, conn net.Conn, fileHash map[string]string) 
 		hasher := sha256.New()
 		if _, err := io.Copy(hasher, fileCheck); err != nil {
 			log.Fatalln(err.Error())
-			return
+			return false
 		}
 		value := hex.EncodeToString(hasher.Sum(nil))
 		fileHash[fileName] = value
-		fileStored, err := os.OpenFile(checkFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		fileStored, err := os.OpenFile(checkFile, os.O_APPEND | os.O_CREATE | os.O_WRONLY, 0644)
 		check(err)
 		defer fileStored.Close()
 		line := fileName + " " + value + "\n"
 		fileStored.WriteString(line)
 		fmt.Println("File stored in Storj")
 	}
+
+	return true
+}
+
+func connectBackup(backupServer string) net.Conn{
+	fmt.Println("i am here")
+
+	bconn, err := net.Dial("tcp", backupServer)
+
+	if err != nil {
+		fmt.Println(err.Error())
+		return nil
+	}
+	return bconn
 }
