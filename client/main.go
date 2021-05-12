@@ -12,13 +12,13 @@ User's inputs should include the following:
 package main
 
 import (
+	"P4-siri/message"
 	"bufio"
 	"fmt"
 	"io"
 	"log"
 	"net"
 	"os"
-	"strconv"
 	"strings"
 )
 
@@ -42,11 +42,11 @@ func main() {
 			break
 		}
 		// Check result to make sure it's a legit request, then parse in relevant information (operation, file name/path) 
-		message := scanner.Text()
-		if message == "exit" {
+		request := scanner.Text()
+		if request == "exit" {
 			break
 		}
-		queryList := strings.Split(message, " ")
+		queryList := strings.Split(request, " ")
 
 		if len(queryList) != 2 {
 			fmt.Println("Incorrect request format! Example format:")
@@ -62,26 +62,28 @@ func main() {
 			fmt.Println("Invalid request! Allowable requests: put, get, delete, search")
 			continue
 		}
-		fileInfo := queryList[1]
+		fileName := queryList[1]
 
-		// Put operation: open file and find file size information, append size to message header and send message header to server, then send file
-		if strings.EqualFold(operation, "put") {
-			file, err := os.OpenFile(fileInfo, os.O_RDONLY, 0666)
+		msg := message.New(operation, fileName)
+
+		// Put operation: open file and find file size information, update size to message header and send message header to server, then send file
+		if strings.EqualFold(msg.Operation, "put") {
+			file, err := os.OpenFile(msg.FileName, os.O_RDONLY, 0666)
 			check(err)
 			defer file.Close()
 
 			stat, err := file.Stat()
 			check(err)
-			fileSize := stat.Size()
-			message += " " + strconv.Itoa(int(fileSize))
-			msgBytes := make([]byte, 128)
-			copy(msgBytes, message)
-			conn.Write(msgBytes)
+			size := stat.Size()
+			msg.FileSize = size
+			msg.Send(conn)
 			
 			if _, err := io.Copy(conn, file); err != nil {
 				log.Fatalln(err.Error())
 				return
 			}
+		} else {
+			msg.Send(conn)
 		}
 	} 
 }
