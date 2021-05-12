@@ -85,17 +85,21 @@ func handleConnection(conn net.Conn, backupServer string, fileHash map[string]st
 		decoder.Decode(msg)
 
 		if strings.EqualFold(msg.Operation, "put") {
+			fmt.Println("handling put")
 			filePath := strings.Split(msg.FileName, "/")
 			if _, err := os.Stat(storj); os.IsNotExist(err) {
 				os.Mkdir(storj, 0755)
 			}
 			fileName := storj + "/" + filePath[len(filePath) - 1]
 
+			fmt.Println(fileName)
 			val, present := fileHash[fileName]
+			fmt.Println(fileHash)
 			if present && !strings.EqualFold(val, "deleted") {
 				fmt.Println("File already exists. Please delete the file to proceed with the operation.")
 			} else {
 				// Store the file
+				fmt.Println("storing file")
 				file, err := os.OpenFile(fileName, os.O_CREATE | os.O_TRUNC | os.O_RDWR, 0666)
 				check(err)
 				defer file.Close()
@@ -118,10 +122,14 @@ func handleConnection(conn net.Conn, backupServer string, fileHash map[string]st
 					msg.CopyRemain -= 1
 					msg.Send(bconn)
 
-					// if _, err := io.Copy(bconn, file); err != nil {
-					// 	log.Fatalln(err.Error())
-					// 	return
-					// }
+					fileCopy, err := os.OpenFile(fileName, os.O_RDONLY, 0666)
+					check(err)
+					defer fileCopy.Close()
+
+					if _, err := io.Copy(bconn, fileCopy); err != nil {
+						log.Fatalln(err.Error())
+						return
+					}
 
 				}
 				handlePut(msg, conn, backupServer, fileHash)
