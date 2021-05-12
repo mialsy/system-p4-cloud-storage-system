@@ -61,9 +61,6 @@ func main() {
 
 	for {
 		if conn, err := listener.Accept(); err == nil {
-			if bconn == nil {
-				connectBackup(backupServer)
-			}
 			go handleConnection(conn, backupServer, fileHash)
 		}
 	}
@@ -103,7 +100,6 @@ func handleConnection(conn net.Conn, backupServer string, fileHash map[string]st
 				if bconn == nil {
 					fmt.Println("backup off")
 					connectBackup(backupServer)
-					continue
 				}
 				defer bconn.Close()
 				fmt.Println("send message")
