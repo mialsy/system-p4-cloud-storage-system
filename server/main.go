@@ -111,16 +111,13 @@ func handlePut(msg *message.Message, conn net.Conn, backupServer string, fileHas
 
 	// Send same message to backup server
 	fmt.Println(msg.CopyRemain)
+	var bconn net.Conn
 	if msg.CopyRemain > 0 {
-		bconn := connectBackup(backupServer)
+		bconn = connectBackup(backupServer)
 		if bconn == nil {
 			fmt.Println("backup off")
 			return false
-		}
-		defer bconn.Close()
-		fmt.Println("send message")
-		msg.CopyRemain -= 1
-		msg.Send(bconn)
+		}	
 	}
 
 	
@@ -140,7 +137,10 @@ func handlePut(msg *message.Message, conn net.Conn, backupServer string, fileHas
 		defer file.Close()
 
 		if _, err := io.CopyN(file, conn, msg.FileSize); err != nil {
-			log.Fatalln(err.Error())
+			fmt.Println(conn)
+			fmt.Println(msg.FileName)
+			fmt.Println(msg.FileSize)
+			log.Fatalln(err)
 			return false
 		}
 
@@ -150,7 +150,7 @@ func handlePut(msg *message.Message, conn net.Conn, backupServer string, fileHas
 		defer fileCheck.Close()
 		hasher := sha256.New()
 		if _, err := io.Copy(hasher, fileCheck); err != nil {
-			log.Fatalln(err.Error())
+			log.Fatalln(err)
 			return false
 		}
 		value := hex.EncodeToString(hasher.Sum(nil))
@@ -162,6 +162,29 @@ func handlePut(msg *message.Message, conn net.Conn, backupServer string, fileHas
 		fileStored.WriteString(line)
 		fmt.Println("File stored in Storj")
 	}
+
+	if msg.CopyRemain > 0 {
+		defer bconn.Close()
+		fmt.Println("send message")
+		msgCp := message.New(msg.Operation, fileName)
+		msgCp.CopyRemain -= 1
+
+		fileCp, err := os.OpenFile(fileName, os.O_RDONLY, 0666)
+		check(err)
+		defer fileCp.Close()
+
+		stat, err := fileCp.Stat()
+		check(err)
+		size := stat.Size()
+		msgCp.FileSize = size
+		msgCp.Send(bconn)
+		
+		if _, err := io.Copy(bconn, fileCp); err != nil {
+			log.Fatalln(err.Error())
+			return false
+		}
+	}
+	
 	return true
 }
 
