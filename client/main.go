@@ -90,6 +90,7 @@ func main() {
 
 /*
 Function to handle error by logging error message
+@param err: the error being checked
 */
 func check(err error) {
 	if err != nil {
