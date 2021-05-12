@@ -5,11 +5,11 @@ This file handles clients' requests including:
 - delete file from the storage
 - search for string
 Notes:
-- the system would support concurrent requests and multiple clients (// go routines)
+- the system would support concurrent requests and multiple clients
 - replicate files (if replica goes down, reject put operation, but other options are ok)
 - if client put file that already exists in the system, reject operation or overwrite the file
 - operation success/failure acknowledgement after replicating
-- detect and repair file corruption (// checksum)
+- detect and repair file corruption
 */
 
 package main
@@ -17,9 +17,11 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -59,9 +61,24 @@ func handleConnection(conn net.Conn) {
 		operation := queryList[0]
 		fileInfo := queryList[1]
 
-		fmt.Println(queryList)
-		fmt.Println(operation)
-		fmt.Println(fileInfo)
+		if strings.EqualFold(operation, "put") {
+			fileSize := queryList[2]
+			filePath := strings.Split(fileInfo, "/")
+			fileName := filePath[len(filePath) - 1]	
+			file, err := os.OpenFile(fileName, os.O_CREATE | os.O_TRUNC | os.O_RDWR, 0666)
+			check(err)
+			defer file.Close()
+			n, err := strconv.ParseInt(fileSize, 10, 64)
+			check(err)
+			io.CopyN(file, conn, n)
+		}
+	}
+}
+
+func check(err error) {
+	if err != nil {
+		log.Fatalln(err.Error())
+		return
 	}
 }
 
