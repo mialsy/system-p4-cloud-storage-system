@@ -8,11 +8,14 @@ User's inputs should include the following:
 - operation (put/ get/ delete/ search)
 - file name (optional for search, path to file for put)
 */
+
 package main
 
 import (
+	"P4-siri/message"
 	"bufio"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"os"
@@ -38,12 +41,12 @@ func main() {
 		if result == false {
 			break
 		}
-		//Check result to make sure it's a legit request, then parse in relevant information (operation, file name/path) 
-		message := scanner.Text()
-		if message == "exit" {
+		// Check result to make sure it's a legit request, then parse in relevant information (operation, file name/path) 
+		request := scanner.Text()
+		if request == "exit" {
 			break
 		}
-		queryList := strings.Split(message, " ")
+		queryList := strings.Split(request, " ")
 
 		if len(queryList) != 2 {
 			fmt.Println("Incorrect request format! Example format:")
@@ -53,21 +56,41 @@ func main() {
 			fmt.Println("  - search [string]/[empty space]")
 			continue
 		}
+
 		operation := queryList[0]
 		if !strings.EqualFold(operation, "put") && !strings.EqualFold(operation, "get") && !strings.EqualFold(operation, "delete") && !strings.EqualFold(operation, "search") {
 			fmt.Println("Invalid request! Allowable requests: put, get, delete, search")
 			continue
 		}
-		fileInfo := queryList[1]
+		fileName := queryList[1]
 
-		fmt.Println(fileInfo)
+		msg := message.New(operation, fileName)
 
-		msgBytes := make([]byte, 128)
-		copy(msgBytes, message)
-		conn.Write(msgBytes)
+		// Put operation: open file and find file size information, update size to message header and send message header to server, then send file
+		if strings.EqualFold(msg.Operation, "put") {
+			file, err := os.OpenFile(msg.FileName, os.O_RDONLY, 0666)
+			check(err)
+			defer file.Close()
+
+			stat, err := file.Stat()
+			check(err)
+			size := stat.Size()
+			msg.FileSize = size
+			msg.Send(conn)
+			
+			if _, err := io.Copy(conn, file); err != nil {
+				log.Fatalln(err.Error())
+				return
+			}
+		} else {
+			msg.Send(conn)
+		}
 	} 
 }
 
+/*
+Function to handle error by logging error message
+*/
 func check(err error) {
 	if err != nil {
 		log.Fatalln(err.Error())
