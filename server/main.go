@@ -30,7 +30,6 @@ import (
 
 const storj = "./storj"
 const checkFile = "checkFile.txt"
-var bconn net.Conn = nil
 
 func main() {
 	argv := os.Args
@@ -66,15 +65,16 @@ func main() {
 	}
 }
 
-func connectBackup(backupServer string) {
+func connectBackup(backupServer string) net.Conn{
 	fmt.Println("i am here")
-	var err error
 
-	bconn, err = net.Dial("tcp", backupServer)
+	bconn, err := net.Dial("tcp", backupServer)
 
 	if err != nil {
 		fmt.Println(err.Error())
+		return nil
 	}
+	return bconn
 }
 
 /*
@@ -97,9 +97,10 @@ func handleConnection(conn net.Conn, backupServer string, fileHash map[string]st
 			// Send same message to backup server
 			fmt.Println(msg.CopyRemain)
 			if msg.CopyRemain > 0 {
+				bconn := connectBackup(backupServer)
 				if bconn == nil {
 					fmt.Println("backup off")
-					connectBackup(backupServer)
+					continue
 				}
 				defer bconn.Close()
 				fmt.Println("send message")
