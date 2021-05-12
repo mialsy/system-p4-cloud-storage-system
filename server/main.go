@@ -112,6 +112,7 @@ func handlePut(msg *message.Message, conn net.Conn, backupServer string, fileHas
 	// Send same message to backup server
 	fmt.Println(msg.CopyRemain)
 	var bconn net.Conn
+	// ensure all data is written out to the socket
 	if msg.CopyRemain > 0 {
 		bconn = connectBackup(backupServer)
 		if bconn == nil {
@@ -119,7 +120,6 @@ func handlePut(msg *message.Message, conn net.Conn, backupServer string, fileHas
 			return false
 		}	
 	}
-
 	
 	filePath := strings.Split(msg.FileName, "/")
 	if _, err := os.Stat(storj); os.IsNotExist(err) {
@@ -130,12 +130,12 @@ func handlePut(msg *message.Message, conn net.Conn, backupServer string, fileHas
 	val, present := fileHash[fileName]
 	if present && !strings.EqualFold(val, "deleted") {
 		fmt.Println("File already exists. Please delete the file to proceed with the operation.")
-	} else {
+		return false
+	} 
 		// Store the file
 		file, err := os.OpenFile(fileName, os.O_CREATE | os.O_TRUNC | os.O_RDWR, 0666)
 		check(err)
-		defer file.Close()
-
+	 	
 		if _, err := io.CopyN(file, conn, msg.FileSize); err != nil {
 			fmt.Println(conn)
 			fmt.Println(msg.FileName)
@@ -143,47 +143,50 @@ func handlePut(msg *message.Message, conn net.Conn, backupServer string, fileHas
 			log.Fatalln(err)
 			return false
 		}
+		file.Close()
 
 		// Hash the file
 		fileCheck, err := os.OpenFile(fileName, os.O_RDONLY, 0666)
 		check(err)
-		defer fileCheck.Close()
 		hasher := sha256.New()
 		if _, err := io.Copy(hasher, fileCheck); err != nil {
 			log.Fatalln(err)
 			return false
 		}
 		value := hex.EncodeToString(hasher.Sum(nil))
+		fileCheck.Close()
 		fileHash[fileName] = value
+
 		fileStored, err := os.OpenFile(checkFile, os.O_APPEND | os.O_CREATE | os.O_WRONLY, 0644)
 		check(err)
-		defer fileStored.Close()
 		line := fileName + " " + value + "\n"
 		fileStored.WriteString(line)
+		fileStored.Close()
 		fmt.Println("File stored in Storj")
-	}
 
-	if msg.CopyRemain > 0 {
-		defer bconn.Close()
-		fmt.Println("send message")
-		msgCp := message.New(msg.Operation, fileName)
-		msgCp.CopyRemain -= 1
+		if msg.CopyRemain > 0 {
+			defer bconn.Close()
+			fmt.Println("send message")
+			msgCp := message.New(msg.Operation, msg.FileName)
+			msgCp.CopyRemain -= 1
 
-		fileCp, err := os.OpenFile(fileName, os.O_RDONLY, 0666)
-		check(err)
-		defer fileCp.Close()
+			fileCp, err := os.OpenFile(fileName, os.O_RDONLY, 0666)
+			check(err)
+			
+			statCp, err := fileCp.Stat()
+			check(err)
+			sizeCp := statCp.Size()
+			msgCp.FileSize = sizeCp
+			msgCp.Send(bconn)
+			
+			if _, err := io.Copy(bconn, fileCp); err != nil {
+				log.Fatalln(err.Error())
+				fileCp.Close()
+				return false
+			}
+			fileCp.Close()
+		}		
 
-		stat, err := fileCp.Stat()
-		check(err)
-		size := stat.Size()
-		msgCp.FileSize = size
-		msgCp.Send(bconn)
-		
-		if _, err := io.Copy(bconn, fileCp); err != nil {
-			log.Fatalln(err.Error())
-			return false
-		}
-	}
 	
 	return true
 }
