@@ -85,7 +85,48 @@ func handleConnection(conn net.Conn, backupServer string, fileHash map[string]st
 		decoder.Decode(msg)
 
 		if strings.EqualFold(msg.Operation, "put") {
-			handlePut(msg, conn, backupServer, fileHash)
+			filePath := strings.Split(msg.FileName, "/")
+			if _, err := os.Stat(storj); os.IsNotExist(err) {
+				os.Mkdir(storj, 0755)
+			}
+			fileName := storj + "/" + filePath[len(filePath) - 1]
+
+			val, present := fileHash[fileName]
+			if present && !strings.EqualFold(val, "deleted") {
+				fmt.Println("File already exists. Please delete the file to proceed with the operation.")
+			} else {
+				// Store the file
+				file, err := os.OpenFile(fileName, os.O_CREATE | os.O_TRUNC | os.O_RDWR, 0666)
+				check(err)
+				defer file.Close()
+
+				if _, err := io.CopyN(file, conn, msg.FileSize); err != nil {
+					log.Fatalln(err.Error())
+					return
+				}
+
+				// Send same message to backup server
+				fmt.Println(msg.CopyRemain)
+				if msg.CopyRemain > 0 {
+					bconn := connectBackup(backupServer)
+					if bconn == nil {
+						fmt.Println("backup off")
+						continue
+					}
+					defer bconn.Close()
+					fmt.Println("send message")
+					msg.CopyRemain -= 1
+					msg.Send(bconn)
+
+					// if _, err := io.Copy(bconn, file); err != nil {
+					// 	log.Fatalln(err.Error())
+					// 	return
+					// }
+
+				}
+				handlePut(msg, conn, backupServer, fileHash)
+			}
+			
 		}
 	}
 }
@@ -109,40 +150,40 @@ Function to handle put operation: store received files in "storj" folder, if fil
 */
 func handlePut(msg *message.Message, conn net.Conn, backupServer string, fileHash map[string]string) bool {
 
-	// Send same message to backup server
-	fmt.Println(msg.CopyRemain)
-	if msg.CopyRemain > 0 {
-		bconn := connectBackup(backupServer)
-		if bconn == nil {
-			fmt.Println("backup off")
-			return false
-		}
-		defer bconn.Close()
-		fmt.Println("send message")
-		msg.CopyRemain -= 1
-		msg.Send(bconn)
-	}
+	// // Send same message to backup server
+	// fmt.Println(msg.CopyRemain)
+	// if msg.CopyRemain > 0 {
+	// 	bconn := connectBackup(backupServer)
+	// 	if bconn == nil {
+	// 		fmt.Println("backup off")
+	// 		return false
+	// 	}
+	// 	defer bconn.Close()
+	// 	fmt.Println("send message")
+	// 	msg.CopyRemain -= 1
+	// 	msg.Send(bconn)
+	// }
 
 	
 	filePath := strings.Split(msg.FileName, "/")
-	if _, err := os.Stat(storj); os.IsNotExist(err) {
-		os.Mkdir(storj, 0755)
-	}
+	// if _, err := os.Stat(storj); os.IsNotExist(err) {
+	// 	os.Mkdir(storj, 0755)
+	// }
 	fileName := storj + "/" + filePath[len(filePath) - 1]
 
-	val, present := fileHash[fileName]
-	if present && !strings.EqualFold(val, "deleted") {
-		fmt.Println("File already exists. Please delete the file to proceed with the operation.")
-	} else {
-		// Store the file
-		file, err := os.OpenFile(fileName, os.O_CREATE | os.O_TRUNC | os.O_RDWR, 0666)
-		check(err)
-		defer file.Close()
+	// val, present := fileHash[fileName]
+	// if present && !strings.EqualFold(val, "deleted") {
+	// 	fmt.Println("File already exists. Please delete the file to proceed with the operation.")
+	// } else {
+	// 	// Store the file
+	// 	file, err := os.OpenFile(fileName, os.O_CREATE | os.O_TRUNC | os.O_RDWR, 0666)
+	// 	check(err)
+	// 	defer file.Close()
 
-		if _, err := io.CopyN(file, conn, msg.FileSize); err != nil {
-			log.Fatalln(err.Error())
-			return false
-		}
+	// 	if _, err := io.CopyN(file, conn, msg.FileSize); err != nil {
+	// 		log.Fatalln(err.Error())
+	// 		return false
+	// 	}
 
 		// Hash the file
 		fileCheck, err := os.OpenFile(fileName, os.O_RDONLY, 0666)
@@ -161,7 +202,7 @@ func handlePut(msg *message.Message, conn net.Conn, backupServer string, fileHas
 		line := fileName + " " + value + "\n"
 		fileStored.WriteString(line)
 		fmt.Println("File stored in Storj")
-	}
+	// }
 	return true
 }
 
