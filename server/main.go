@@ -211,7 +211,7 @@ func handleGet(msg message.Message, conn net.Conn, backupServer string, fileHash
 	expectedVal, isInMap := fileHash[fileName]
 	log.Println(fileHash)
 
-	if !isInMap {
+	if !isInMap || expectedVal == "deleted" {
 		log.Println("no such file")
 		// not in the map, not able to do get
 		msg.FileName = "no such file"
@@ -314,7 +314,10 @@ func handleSearch(msg message.Message, conn net.Conn, fileHash map[string]string
 
 	queryRes := make([]byte, 0)
 
-	for fileName := range fileHash {		
+	for fileName := range fileHash {	
+		if fileHash[fileName] == "deleted" {
+			continue
+		}	
 		if strings.Index(fileName, query) != -1 {
 			if len(queryRes) > 0 {
 				queryRes = append(queryRes, ", "...)
