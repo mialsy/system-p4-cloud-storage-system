@@ -14,9 +14,9 @@ package main
 import (
 	"P4-siri/message"
 	"bufio"
+	"encoding/gob"
 	"fmt"
 	"io"
-	"encoding/gob"
 	"log"
 	"net"
 	"os"
@@ -86,8 +86,9 @@ func main() {
 				fmt.Println(err.Error())
 			}
 			buffer.Flush()
-		} 
-		msg.Send(conn)
+		} else {
+			msg.Send(conn)
+		}
 
 		if strings.EqualFold(msg.Operation, "get") {
 			if handleGet(conn) {

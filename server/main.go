@@ -95,6 +95,8 @@ func handleConnection(conn net.Conn, backupServer string, fileHash map[string]st
 			handleGet(msg, conn, backupServer, fileHash)	
 		} else if strings.EqualFold(msg.Operation, "search") {
 			handleSearch(msg, conn, fileHash)
+		} else if strings.EqualFold(msg.Operation, "delete") {
+			handleDelete(msg, backupServer, fileHash)
 		}
 	}
 }
@@ -324,6 +326,35 @@ func handleSearch(msg message.Message, conn net.Conn, fileHash map[string]string
 	} 
 	msg.FileName = string(queryRes)
 	msg.Send(conn)
+}
+
+func handleDelete(msg message.Message, backupServer string, fileHash map[string]string) {
+	fileName := storj + "/" + msg.FileName
+	val, present := fileHash[fileName]
+	if !present || strings.EqualFold(val, "deleted") {
+		fmt.Println("File doesn't exist")
+	} else {
+		if msg.CopyRemain > 0 {
+			bconn := connectBackup(backupServer)
+			if bconn == nil {
+				fmt.Println("backup off")
+				return
+			}
+			defer bconn.Close()
+			msg.CopyRemain -= 1
+			msg.Send(bconn)
+		}
+
+		err := os.Remove(fileName)
+		check(err)
+		fileHash[fileName] = "deleted"
+		file, err := os.OpenFile(checkFile, os.O_APPEND | os.O_CREATE | os.O_WRONLY, 0644)
+		check(err)
+		defer file.Close()
+		line := fileName + " " + "deleted" + "\n"
+		file.WriteString(line)
+		fmt.Print("File removed")
+	}
 }
 
 func connectBackup(backupServer string) net.Conn{
