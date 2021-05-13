@@ -80,12 +80,14 @@ func handleConnection(conn net.Conn, backupServer string, fileHash map[string]st
 
 	for {
 		// Receive message from client
-		decoder := gob.NewDecoder(conn)
-		msg := &message.Message{}
-		decoder.Decode(msg)
+		buffer := bufio.NewReader(conn)
+		decoder := gob.NewDecoder(buffer)
+		// decoder := gob.NewDecoder(conn)
+		var msg message.Message
+		decoder.Decode(&msg)
 
 		if strings.EqualFold(msg.Operation, "put") {
-			handlePut(msg, conn, backupServer, fileHash)
+			handlePut(msg, buffer, backupServer, fileHash)
 		}
 	}
 }
@@ -107,9 +109,9 @@ Function to handle put operation: store received files in "storj" folder, if fil
 @param conn: the connection
 @param fileHash: map to store file name and its checksum value
 */
-func handlePut(msg *message.Message, conn net.Conn, backupServer string, fileHash map[string]string) bool {
+func handlePut(msg message.Message, buffer *bufio.Reader, backupServer string, fileHash map[string]string) bool {
 
-	defer conn.Close()
+	// defer conn.Close()
 
 	fmt.Println("handling put")
 	filePath := strings.Split(msg.FileName, "/")
@@ -130,7 +132,7 @@ func handlePut(msg *message.Message, conn net.Conn, backupServer string, fileHas
 		check(err)
 		defer file.Close()
 
-		if _, err := io.CopyN(file, conn, msg.FileSize); err != nil {
+		if _, err := io.CopyN(file, buffer, msg.FileSize); err != nil {
 			log.Fatalln(err.Error())
 			return false
 		}
@@ -146,16 +148,27 @@ func handlePut(msg *message.Message, conn net.Conn, backupServer string, fileHas
 			defer bconn.Close()
 			fmt.Println("send message")
 			msg.CopyRemain -= 1
-			msg.Send(bconn)
+			// msg.Send(bconn)
 
 			fileCopy, err := os.OpenFile(fileName, os.O_RDONLY, 0666)
 			check(err)
 			defer fileCopy.Close()
 
-			if _, err := io.Copy(bconn, fileCopy); err != nil {
-				log.Fatalln(err.Error())
-				return false
+			bbuffer := bufio.NewWriter(bconn)
+			encoder := gob.NewEncoder(bbuffer)
+			fmt.Println(msg)
+			encoder.Encode(msg)
+			sz, err := io.Copy(bbuffer, fileCopy)
+			fmt.Println(sz)
+			if err != nil {
+				fmt.Println(err.Error())
 			}
+
+			// if _, err := io.Copy(bconn, fileCopy); err != nil {
+			// 	log.Fatalln(err.Error())
+			// 	return false
+			// }
+			// time.Sleep(8 * time.Second)
 
 		}
 
