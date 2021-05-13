@@ -14,9 +14,9 @@ package main
 import (
 	"P4-siri/message"
 	"bufio"
-	"encoding/gob"
 	"fmt"
 	"io"
+	"encoding/gob"
 	"log"
 	"net"
 	"os"
@@ -88,8 +88,42 @@ func main() {
 			buffer.Flush()
 		} else {
 			msg.Send(conn)
+
+			if strings.EqualFold(msg.Operation, "get") {
+				if handleGet(conn) {
+					fmt.Println("get success")
+				}
+			}
 		}
 	} 
+}
+
+func handleGet(conn net.Conn) bool{
+	buffer := bufio.NewReader(conn)
+	decoder := gob.NewDecoder(buffer)
+	var msg message.Message
+	err := decoder.Decode(&msg)
+	if err == nil {
+		// able to get
+		fileName := msg.FileName
+		if msg.FileSize != 0 {
+			file, err := os.OpenFile(fileName, os.O_CREATE | os.O_TRUNC | os.O_RDWR, 0666)
+			check(err)
+
+			sz, err := io.CopyN(file, buffer, msg.FileSize)
+
+			if err != nil || sz != msg.FileSize {
+				fmt.Printf("copy error, size copied\n", sz)
+			}
+			file.Close()
+		} else {
+			fmt.Println(msg.FileName)
+			return false
+		}
+		return true
+	} 
+	fmt.Println("cannot decode: " + err.Error())
+	return false
 }
 
 /*
