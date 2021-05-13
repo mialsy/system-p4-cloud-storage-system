@@ -274,7 +274,8 @@ func handleGet(msg *message.Message, conn net.Conn, backupServer string, fileHas
 				fmt.Println(stat1.Size())
 			} else {
 				// error copying
-				fmt.Println(msg.FileName)
+				fmt.Println(msgBackup.FileName)
+				msgBackup.Send(conn)
 				return
 			}
 		}
