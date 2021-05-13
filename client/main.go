@@ -70,7 +70,10 @@ func main() {
 		// Put operation: open file and find file size information, update size to message header and send message header to server, then send file
 		if strings.EqualFold(msg.Operation, "put") {
 			file, err := os.OpenFile(msg.FileName, os.O_RDONLY, 0666)
-			check(err)
+			if err != nil {
+				log.Println("open file error: " + err.Error())
+				continue
+			}
 			defer file.Close()
 
 			stat, err := file.Stat()

@@ -58,6 +58,7 @@ func main() {
 	listener, err := net.Listen("tcp", defaultServer)
 	check(err)
 
+	
 	for {
 		if conn, err := listener.Accept(); err == nil {
 			go handleConnection(conn, backupServer, fileHash)
@@ -75,7 +76,6 @@ and detect and handle file corruption
 */
 func handleConnection(conn net.Conn, backupServer string, fileHash map[string]string) {
 	fmt.Println("I am handle connection")
-
 	defer conn.Close()
 
 	for {
@@ -85,8 +85,8 @@ func handleConnection(conn net.Conn, backupServer string, fileHash map[string]st
 		// decoder := gob.NewDecoder(conn)
 		var msg message.Message
 		err := decoder.Decode(&msg)
-		if err != nil {
-			fmt.Println(msg.Operation)
+		if err == nil {
+			log.Println(err.Error())
 		}
 
 		if strings.EqualFold(msg.Operation, "put") {
