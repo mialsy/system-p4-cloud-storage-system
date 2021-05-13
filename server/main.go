@@ -84,12 +84,17 @@ func handleConnection(conn net.Conn, backupServer string, fileHash map[string]st
 		decoder := gob.NewDecoder(buffer)
 		// decoder := gob.NewDecoder(conn)
 		var msg message.Message
-		decoder.Decode(&msg)
+		err := decoder.Decode(&msg)
+		if err != nil {
+			fmt.Println(msg.Operation)
+		}
 
 		if strings.EqualFold(msg.Operation, "put") {
 			handlePut(msg, buffer, backupServer, fileHash)
 		} else if strings.EqualFold(msg.Operation, "get") {
 			handleGet(msg, conn, backupServer, fileHash)	
+		} else if strings.EqualFold(msg.Operation, "search") {
+			handleSearch(msg, conn, fileHash)
 		}
 	}
 }
@@ -265,7 +270,7 @@ func handleGet(msg message.Message, conn net.Conn, backupServer string, fileHash
 				sz, err := io.CopyN(file, readerBuffer, msgBackup.FileSize)
 
 				if err != nil || sz != msgBackup.FileSize {
-					log.Printf("copy error, size copied\n", sz)
+					log.Printf("copy error, size copied%d\n", sz)
 				}
 				file.Close()
 				file1, _ := os.OpenFile(fileName, os.O_RDONLY, 0666)
@@ -301,6 +306,24 @@ func handleGet(msg message.Message, conn net.Conn, backupServer string, fileHash
 	}
 	buffer.Flush()
 	file.Close()
+}
+
+func handleSearch(msg message.Message, conn net.Conn, fileHash map[string]string) {
+	query := msg.FileName
+
+	queryRes := make([]byte, 0)
+
+	for fileName := range fileHash {		
+		if strings.Index(fileName, query) != -1 {
+			if len(queryRes) > 0 {
+				queryRes = append(queryRes, " , "...)
+			}
+			strs := strings.Split(fileName, ",")
+			queryRes = append(queryRes, strs[len(strs) - 1]...)
+		}
+	} 
+	msg.FileName = string(queryRes)
+	msg.Send(conn)
 }
 
 func connectBackup(backupServer string) net.Conn{
