@@ -236,7 +236,7 @@ func handleGet(msg *message.Message, conn net.Conn, backupServer string, fileHas
 
 		if bconn == nil {
 			fmt.Println("backup off")
-			msg.FileName = "backup off"
+			msg.FileName = "original file broken, backup off"
 			msg.Send(conn)
 			return 
 		}
@@ -248,15 +248,38 @@ func handleGet(msg *message.Message, conn net.Conn, backupServer string, fileHas
 
 		msg.Send(bconn)
 
-		decoder := gob.NewDecoder(bconn)
-		msgBack := &message.Message{}
-		err := decoder.Decode(msgBack)
-		if err != nil {
-			msg.FileName = "fail to retrive file"
-			msg.Send(conn)
+		readerBuffer := bufio.NewReader(bconn)
+		bdecoder := gob.NewDecoder(readerBuffer)
+		var msgBackup message.Message
+		err := bdecoder.Decode(&msgBackup)
+
+		if err == nil {
+			// able to get
+			if msgBackup.FileSize != 0 {
+				fmt.Println("get from back up " + fileName)
+				file, err := os.OpenFile(fileName, os.O_CREATE | os.O_TRUNC | os.O_RDWR, 0666)
+				check(err)
+				file.Truncate(0)
+
+				sz, err := io.CopyN(file, readerBuffer, msgBackup.FileSize)
+
+				if err != nil || sz != msgBackup.FileSize {
+					log.Printf("copy error, size copied\n", sz)
+				}
+				file.Close()
+				file1, _ := os.OpenFile(fileName, os.O_RDONLY, 0666)
+
+				// if reaches here, should have the correct copy
+				stat1, _ := file1.Stat()
+				fmt.Println(stat1.Size())
+			} else {
+				// error copying
+				fmt.Println(msg.FileName)
+				return
+			}
 		}
 
-		
+
 	} 
 	
 	file, err := os.OpenFile(fileName, os.O_RDONLY, 0666)
@@ -269,17 +292,12 @@ func handleGet(msg *message.Message, conn net.Conn, backupServer string, fileHas
 	buffer := bufio.NewWriter(conn)
 	encoder := gob.NewEncoder(buffer)
 	encoder.Encode(msg)
-	// buffer.Flush()
-
-	fmt.Println(size) 
-
 	sz, err := io.Copy(buffer, file)
 	fmt.Println(sz)
 	if err != nil {
 		fmt.Println(err.Error())
 	}
 	buffer.Flush()
-	fmt.Println("=====")
 	file.Close()
 }
 

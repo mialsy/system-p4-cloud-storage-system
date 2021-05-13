@@ -91,7 +91,9 @@ func main() {
 			msg.Send(conn)
 
 			if strings.EqualFold(msg.Operation, "get") {
-				handleGet(conn)
+				if handleGet(conn) {
+					fmt.Println("get success")
+				}
 			}
 		}
 	} 
@@ -105,19 +107,15 @@ func handleGet(conn net.Conn) bool{
 	if err == nil {
 		// able to get
 		fileName := msg.FileName
-		fmt.Println(msg.FileSize)
 		if msg.FileSize != 0 {
-			fmt.Println(fileName)
 			file, err := os.OpenFile(fileName, os.O_CREATE | os.O_TRUNC | os.O_RDWR, 0666)
 			check(err)
 
 			sz, err := io.CopyN(file, buffer, msg.FileSize)
-			fmt.Println("----")
 
 			if err != nil || sz != msg.FileSize {
-				log.Println("copy to local error: " +err.Error())
+				fmt.Printf("copy error, size copied\n", sz)
 			}
-			fmt.Println(sz)
 			file.Close()
 		} else {
 			fmt.Println(msg.FileName)
