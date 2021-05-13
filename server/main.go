@@ -84,10 +84,7 @@ func handleConnection(conn net.Conn, backupServer string, fileHash map[string]st
 		decoder := gob.NewDecoder(buffer)
 		// decoder := gob.NewDecoder(conn)
 		var msg message.Message
-		err := decoder.Decode(&msg)
-		if err == nil {
-			log.Println(err.Error())
-		}
+		decoder.Decode(&msg)
 
 		if strings.EqualFold(msg.Operation, "put") {
 			handlePut(msg, buffer, backupServer, fileHash)
@@ -97,6 +94,8 @@ func handleConnection(conn net.Conn, backupServer string, fileHash map[string]st
 			handleSearch(msg, conn, fileHash)
 		} else if strings.EqualFold(msg.Operation, "delete") {
 			handleDelete(msg, backupServer, fileHash)
+		} else {
+			break
 		}
 	}
 }
