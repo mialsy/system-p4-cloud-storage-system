@@ -17,6 +17,7 @@ import (
 	"encoding/gob"
 	"fmt"
 	"io"
+	"encoding/gob"
 	"log"
 	"net"
 	"os"
@@ -88,8 +89,44 @@ func main() {
 			buffer.Flush()
 		} else {
 			msg.Send(conn)
+
+			if strings.EqualFold(msg.Operation, "get") {
+				handleGet(conn)
+			}
 		}
 	} 
+}
+
+func handleGet(conn net.Conn) bool{
+	buffer := bufio.NewReader(conn)
+	decoder := gob.NewDecoder(buffer)
+	var msg message.Message
+	err := decoder.Decode(&msg)
+	if err == nil {
+		// able to get
+		fileName := msg.FileName
+		fmt.Println(msg.FileSize)
+		if msg.FileSize != 0 {
+			fmt.Println(fileName)
+			file, err := os.OpenFile(fileName, os.O_CREATE | os.O_TRUNC | os.O_RDWR, 0666)
+			check(err)
+
+			sz, err := io.CopyN(file, buffer, msg.FileSize)
+			fmt.Println("----")
+
+			if err != nil || sz != msg.FileSize {
+				log.Println("copy to local error: " +err.Error())
+			}
+			fmt.Println(sz)
+			file.Close()
+		} else {
+			fmt.Println(msg.FileName)
+			return false
+		}
+		return true
+	} 
+	fmt.Println("cannot decode: " + err.Error())
+	return false
 }
 
 /*
