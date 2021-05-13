@@ -165,6 +165,7 @@ func handlePut(msg message.Message, buffer *bufio.Reader, backupServer string, f
 			if err != nil {
 				fmt.Println(err.Error())
 			}
+			bbuffer.Flush()
 
 			// if _, err := io.Copy(bconn, fileCopy); err != nil {
 			// 	log.Fatalln(err.Error())
