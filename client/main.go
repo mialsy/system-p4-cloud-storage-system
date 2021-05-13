@@ -86,14 +86,15 @@ func main() {
 				fmt.Println(err.Error())
 			}
 			buffer.Flush()
-		} else {
-			msg.Send(conn)
+		} 
+		msg.Send(conn)
 
-			if strings.EqualFold(msg.Operation, "get") {
-				if handleGet(conn) {
-					fmt.Println("get success")
-				}
+		if strings.EqualFold(msg.Operation, "get") {
+			if handleGet(conn) {
+				fmt.Println("get success")
 			}
+		} else if strings.EqualFold(msg.Operation, "search") {
+			handleSearch(conn)
 		}
 	} 
 }
@@ -113,7 +114,7 @@ func handleGet(conn net.Conn) bool{
 			sz, err := io.CopyN(file, buffer, msg.FileSize)
 
 			if err != nil || sz != msg.FileSize {
-				fmt.Printf("copy error, size copied\n", sz)
+				fmt.Printf("copy error, size copied %d\n", sz)
 			}
 			file.Close()
 		} else {
@@ -124,6 +125,22 @@ func handleGet(conn net.Conn) bool{
 	} 
 	fmt.Println("cannot decode: " + err.Error())
 	return false
+}
+
+func handleSearch(conn net.Conn) {
+	buffer := bufio.NewReader(conn)
+	decoder := gob.NewDecoder(buffer)
+	var msg message.Message
+	err := decoder.Decode(&msg)
+	if err == nil {
+		if len(msg.FileName) != 0 {
+			fmt.Println("Query result: " + msg.FileName)
+		} else {
+			fmt.Println("No result found")
+		}
+	} else {
+		fmt.Println("cannot decode: " + err.Error())
+	}
 }
 
 /*
