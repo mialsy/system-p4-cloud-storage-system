@@ -87,7 +87,7 @@ func handleConnection(conn net.Conn, backupServer string, fileHash map[string]st
 		decoder.Decode(&msg)
 
 		if strings.EqualFold(msg.Operation, "put") {
-			handlePut(msg, conn, backupServer, fileHash)
+			handlePut(msg, buffer, backupServer, fileHash)
 		} else if strings.EqualFold(msg.Operation, "get") {
 			handleGet(msg, conn, backupServer, fileHash)	
 		}
@@ -196,7 +196,7 @@ func handlePut(msg message.Message, buffer *bufio.Reader, backupServer string, f
 	return true
 }
 
-func handleGet(msg *message.Message, conn net.Conn, backupServer string, fileHash map[string]string)  {
+func handleGet(msg message.Message, conn net.Conn, backupServer string, fileHash map[string]string)  {
 	filePath := strings.Split(msg.FileName, "/")
 	fileName := storj + "/" + filePath[len(filePath) - 1]
 	fmt.Println(msg.FileName)

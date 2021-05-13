@@ -14,7 +14,6 @@ package main
 import (
 	"P4-siri/message"
 	"bufio"
-	"encoding/gob"
 	"fmt"
 	"io"
 	"encoding/gob"
