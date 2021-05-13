@@ -14,6 +14,7 @@ package main
 import (
 	"P4-siri/message"
 	"bufio"
+	"encoding/gob"
 	"fmt"
 	"io"
 	"log"
@@ -76,12 +77,15 @@ func main() {
 			check(err)
 			size := stat.Size()
 			msg.FileSize = size
-			msg.Send(conn)
-			
-			if _, err := io.Copy(conn, file); err != nil {
-				log.Fatalln(err.Error())
-				return
+			buffer := bufio.NewWriter(conn)
+			encoder := gob.NewEncoder(buffer)
+			encoder.Encode(msg)
+			sz, err := io.Copy(buffer, file)
+			fmt.Println(sz)
+			if err != nil {
+				fmt.Println(err.Error())
 			}
+			buffer.Flush()
 		} else {
 			msg.Send(conn)
 		}
