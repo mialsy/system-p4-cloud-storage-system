@@ -316,9 +316,9 @@ func handleSearch(msg message.Message, conn net.Conn, fileHash map[string]string
 	for fileName := range fileHash {		
 		if strings.Index(fileName, query) != -1 {
 			if len(queryRes) > 0 {
-				queryRes = append(queryRes, " , "...)
+				queryRes = append(queryRes, ", "...)
 			}
-			strs := strings.Split(fileName, ",")
+			strs := strings.Split(fileName, "/")
 			queryRes = append(queryRes, strs[len(strs) - 1]...)
 		}
 	} 
