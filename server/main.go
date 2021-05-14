@@ -123,6 +123,19 @@ func handlePut(msg message.Message, conn net.Conn, buffer *bufio.Reader, backupS
 		return
 	}
 
+	// Store the file
+	file, err := os.OpenFile(fileName, os.O_CREATE|os.O_TRUNC|os.O_RDWR, 0666)
+	utils.Check(err)
+	defer file.Close()
+
+	if _, err := io.CopyN(file, buffer, msg.FileSize); err != nil {
+		log.Fatalln(err.Error())
+		msg.FileSize = -1
+		msg.FileName = err.Error()
+		msg.Send(conn)
+		return
+	}
+
 	// Send message to backup server
 	if msg.CopyRemain > 0 {
 		bconn := connectBackup(backupServer)
@@ -153,19 +166,6 @@ func handlePut(msg message.Message, conn net.Conn, buffer *bufio.Reader, backupS
 		} else {
 			log.Println(feedBack)
 		}
-	}
-
-	// Store the file
-	file, err := os.OpenFile(fileName, os.O_CREATE|os.O_TRUNC|os.O_RDWR, 0666)
-	utils.Check(err)
-	defer file.Close()
-
-	if _, err := io.CopyN(file, buffer, msg.FileSize); err != nil {
-		log.Fatalln(err.Error())
-		msg.FileSize = -1
-		msg.FileName = err.Error()
-		msg.Send(conn)
-		return
 	}
 
 	// Hash the file
