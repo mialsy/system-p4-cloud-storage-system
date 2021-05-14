@@ -7,7 +7,7 @@ This file handles clients' requests including:
 Notes:
 - the system would support concurrent requests and multiple clients
 - replicate files (if replica goes down, reject put operation, but other options are ok)
-- if client put file that already exists in the system, reject operation or overwrite the file
+- if client puts file that already exists in the system, reject operation
 - operation success/failure acknowledgement after replicating
 - detect and repair file corruption
 */
@@ -28,8 +28,8 @@ import (
 	"strings"
 )
 
-const storj = "./storj"
-const checkFile = "checkFile.txt"
+const storj = "./storj" // Folder stores files from clients 
+const checkFile = "checkFile.txt" // File stores files' checksum 
 
 func main() {
 	argv := os.Args
@@ -58,7 +58,6 @@ func main() {
 	listener, err := net.Listen("tcp", defaultServer)
 	check(err)
 
-	
 	for {
 		if conn, err := listener.Accept(); err == nil {
 			go handleConnection(conn, backupServer, fileHash)
@@ -75,25 +74,23 @@ and detect and handle file corruption
 @param fileHash: map to store file name and its checksum value
 */
 func handleConnection(conn net.Conn, backupServer string, fileHash map[string]string) {
-	fmt.Println("I am handle connection")
 	defer conn.Close()
 
 	for {
 		// Receive message from client
 		buffer := bufio.NewReader(conn)
 		decoder := gob.NewDecoder(buffer)
-		// decoder := gob.NewDecoder(conn)
 		var msg message.Message
 		decoder.Decode(&msg)
 
 		if strings.EqualFold(msg.Operation, "put") {
-			handlePut(msg, buffer, backupServer, fileHash)
+			handlePut(msg, conn, buffer, backupServer, fileHash)
 		} else if strings.EqualFold(msg.Operation, "get") {
 			handleGet(msg, conn, backupServer, fileHash)	
 		} else if strings.EqualFold(msg.Operation, "search") {
 			handleSearch(msg, conn, fileHash)
 		} else if strings.EqualFold(msg.Operation, "delete") {
-			handleDelete(msg, backupServer, fileHash)
+			handleDelete(msg, conn, backupServer, fileHash)
 		} else {
 			break
 		}
@@ -101,62 +98,49 @@ func handleConnection(conn net.Conn, backupServer string, fileHash map[string]st
 }
 
 /*
-Function to handle error by logging error message
-@param err: the error being checked
-*/
-func check(err error) {
-	if err != nil {
-		log.Fatalln(err.Error())
-		return
-	}
-}
-
-/*
-Function to handle put operation: store received files in "storj" folder, if file already exist then reject the request
+Function to handle put operation: store received files in "storj" folder, if file already exist or backup server is down, then reject the request
 @param msg: message sent from client side
-@param conn: the connection
+@param buffer: the buffer 
+@param backupServer: hostname and port number of the backup server
 @param fileHash: map to store file name and its checksum value
 */
-func handlePut(msg message.Message, buffer *bufio.Reader, backupServer string, fileHash map[string]string) bool {
+func handlePut(msg message.Message, conn net.Conn, buffer *bufio.Reader, backupServer string, fileHash map[string]string) {
 
-	// defer conn.Close()
-
-	fmt.Println("handling put")
-	filePath := strings.Split(msg.FileName, "/")
 	if _, err := os.Stat(storj); os.IsNotExist(err) {
 		os.Mkdir(storj, 0755)
 	}
+	filePath := strings.Split(msg.FileName, "/")
 	fileName := storj + "/" + filePath[len(filePath) - 1]
-
-	fmt.Println(fileName)
 	val, present := fileHash[fileName]
-	fmt.Println(fileHash)
+	
 	if present && !strings.EqualFold(val, "deleted") {
-		fmt.Println("File already exists. Please delete the file to proceed with the operation.")
+		msg.FileName = "File already exists. Please delete the file to proceed with the operation."
+		msg.Send(conn)
 	} else {
 		// Store the file
-		fmt.Println("storing file")
 		file, err := os.OpenFile(fileName, os.O_CREATE | os.O_TRUNC | os.O_RDWR, 0666)
 		check(err)
 		defer file.Close()
 
 		if _, err := io.CopyN(file, buffer, msg.FileSize); err != nil {
 			log.Fatalln(err.Error())
-			return false
+			msg.FileName = err.Error()
+			msg.Send(conn)
+			return 
 		}
 
-		// Send same message to backup server
-		fmt.Println(msg.CopyRemain)
+		// Send message to backup server
 		if msg.CopyRemain > 0 {
 			bconn := connectBackup(backupServer)
 			if bconn == nil {
-				fmt.Println("backup off")
-				return false
+				msg.FileName = "Sorry, can't perform request at this moment"
+				os.Remove(fileName)
+				msg.Send(conn)
+				return 
 			}
 			defer bconn.Close()
-			fmt.Println("send message")
+			
 			msg.CopyRemain -= 1
-			// msg.Send(bconn)
 
 			fileCopy, err := os.OpenFile(fileName, os.O_RDONLY, 0666)
 			check(err)
@@ -164,7 +148,6 @@ func handlePut(msg message.Message, buffer *bufio.Reader, backupServer string, f
 
 			bbuffer := bufio.NewWriter(bconn)
 			encoder := gob.NewEncoder(bbuffer)
-			fmt.Println(msg)
 			encoder.Encode(msg)
 			sz, err := io.Copy(bbuffer, fileCopy)
 			fmt.Println(sz)
@@ -172,44 +155,34 @@ func handlePut(msg message.Message, buffer *bufio.Reader, backupServer string, f
 				fmt.Println(err.Error())
 			}
 			bbuffer.Flush()
-
-			// if _, err := io.Copy(bconn, fileCopy); err != nil {
-			// 	log.Fatalln(err.Error())
-			// 	return false
-			// }
-			// time.Sleep(8 * time.Second)
-
 		}
 
 		// Hash the file
-		fileCheck, err := os.OpenFile(fileName, os.O_RDONLY, 0666)
-		check(err)
-		defer fileCheck.Close()
-		hasher := sha256.New()
-		if _, err := io.Copy(hasher, fileCheck); err != nil {
-			log.Fatalln(err.Error())
-			return false
-		}
-		value := hex.EncodeToString(hasher.Sum(nil))
+		value := hash(fileName)
 		fileHash[fileName] = value
 		fileStored, err := os.OpenFile(checkFile, os.O_APPEND | os.O_CREATE | os.O_WRONLY, 0644)
 		check(err)
 		defer fileStored.Close()
 		line := fileName + " " + value + "\n"
 		fileStored.WriteString(line)
-		fmt.Println("File stored in Storj")
+		msg.FileName = "File stored"
+		msg.Send(conn)
 	}
-
-	return true
 }
 
+/*
+Function to handle get operation request: find the file in "storj" folder and check its checksum. If the file is corrupted, contact backup server 
+to get the correct file then send the file to client. 
+@param msg: message sent from client side
+@param conn: the connection
+@param backupServer: hostname and port number of the backup server
+@param fileHash: map to store file name and its checksum value
+*/
 func handleGet(msg message.Message, conn net.Conn, backupServer string, fileHash map[string]string)  {
 	filePath := strings.Split(msg.FileName, "/")
 	fileName := storj + "/" + filePath[len(filePath) - 1]
-	fmt.Println(msg.FileName)
 
 	expectedVal, isInMap := fileHash[fileName]
-	log.Println(fileHash)
 
 	if !isInMap || expectedVal == "deleted" {
 		log.Println("no such file")
@@ -219,18 +192,7 @@ func handleGet(msg message.Message, conn net.Conn, backupServer string, fileHash
 		return
 	}
 
-	fileCheck, err := os.OpenFile(fileName, os.O_RDONLY, 0666)
-	check(err)
-
-	hasher := sha256.New()
-	if _, err := io.Copy(hasher, fileCheck); err != nil {
-		msg.FileName = "hash error"
-		msg.Send(conn)
-		return
-	}
-	fileCheck.Close()
-
-	actualVal := hex.EncodeToString(hasher.Sum(nil))
+	actualVal := hash(fileName)
 
 	if expectedVal != actualVal && msg.CopyRemain == 0 {
 		// file broken
@@ -287,7 +249,6 @@ func handleGet(msg message.Message, conn net.Conn, backupServer string, fileHash
 			}
 		}
 
-
 	} 
 	
 	file, err := os.OpenFile(fileName, os.O_RDONLY, 0666)
@@ -309,6 +270,12 @@ func handleGet(msg message.Message, conn net.Conn, backupServer string, fileHash
 	file.Close()
 }
 
+/*
+Function to handle search operation request: send client the list of files that contain the string in the search. If the string is empty, then list all of the files.
+@param msg: message sent from client side
+@param conn: the connection
+@param fileHash: map to store file name and its checksum value
+*/
 func handleSearch(msg message.Message, conn net.Conn, fileHash map[string]string) {
 	query := msg.FileName
 
@@ -330,16 +297,25 @@ func handleSearch(msg message.Message, conn net.Conn, fileHash map[string]string
 	msg.Send(conn)
 }
 
-func handleDelete(msg message.Message, backupServer string, fileHash map[string]string) {
+/*
+Function to handle delete operation request: find the file in "storj" folder and delete files on both servers. If one of the servers is down, then reject the operation. 
+@param msg: message sent from client side
+@param conn: the connection
+@param backupServer: hostname and port number of the backup server 
+@param fileHash: map to store file name and its checksum value
+*/
+func handleDelete(msg message.Message, conn net.Conn, backupServer string, fileHash map[string]string) {
 	fileName := storj + "/" + msg.FileName
 	val, present := fileHash[fileName]
 	if !present || strings.EqualFold(val, "deleted") {
-		fmt.Println("File doesn't exist")
+		msg.FileName = "File doesn't exist"
+		msg.Send(conn)
 	} else {
 		if msg.CopyRemain > 0 {
 			bconn := connectBackup(backupServer)
 			if bconn == nil {
-				fmt.Println("backup off")
+				msg.FileName = "Sorry, can't perform request at this moment"
+				msg.Send(conn)
 				return
 			}
 			defer bconn.Close()
@@ -355,13 +331,17 @@ func handleDelete(msg message.Message, backupServer string, fileHash map[string]
 		defer file.Close()
 		line := fileName + " " + "deleted" + "\n"
 		file.WriteString(line)
-		fmt.Print("File removed")
+		msg.FileName = "File removed"
+		msg.Send(conn)
 	}
 }
 
-func connectBackup(backupServer string) net.Conn{
-	fmt.Println("i am here")
-
+/*
+Function to connect with backup server
+@param backupServer: hostname and port number of the backup server 
+@return the connection
+*/
+func connectBackup(backupServer string) net.Conn {
 	bconn, err := net.Dial("tcp", backupServer)
 
 	if err != nil {
@@ -370,3 +350,34 @@ func connectBackup(backupServer string) net.Conn{
 	}
 	return bconn
 }
+
+/*
+Function to find the checksum of a file
+@param fileName: name of the file
+@return the checksum value of the file 
+*/
+func hash(fileName string) string {
+	file, err := os.OpenFile(fileName, os.O_RDONLY, 0666)
+	check(err)
+	defer file.Close()
+
+	hasher := sha256.New()
+	if _, err := io.Copy(hasher, file); err != nil {
+		log.Fatalln(err.Error())
+		return ""
+	}
+	value := hex.EncodeToString(hasher.Sum(nil))
+	return value
+}
+
+/*
+Function to handle error by logging error message
+@param err: the error being checked
+*/
+func check(err error) {
+	if err != nil {
+		log.Fatalln(err.Error())
+		return
+	}
+}
+
