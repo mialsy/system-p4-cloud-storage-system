@@ -188,6 +188,7 @@ func handleGet(msg message.Message, conn net.Conn, backupServer string, fileHash
 		log.Println("no such file")
 		// not in the map, not able to do get
 		msg.FileName = "no such file"
+		msg.FileSize = -1
 		msg.Send(conn)
 		return
 	}
@@ -197,6 +198,7 @@ func handleGet(msg message.Message, conn net.Conn, backupServer string, fileHash
 	if expectedVal != actualVal && msg.CopyRemain == 0 {
 		// file broken
 		msg.FileName = "file broken"
+		msg.FileSize = -1
 		msg.Send(conn)
 		return
 	} else if expectedVal != actualVal && msg.CopyRemain > 0 {
@@ -206,6 +208,7 @@ func handleGet(msg message.Message, conn net.Conn, backupServer string, fileHash
 		if bconn == nil {
 			fmt.Println("backup off")
 			msg.FileName = "original file broken, backup off"
+			msg.FileSize = -1
 			msg.Send(conn)
 			return 
 		}
@@ -244,6 +247,7 @@ func handleGet(msg message.Message, conn net.Conn, backupServer string, fileHash
 			} else {
 				// error copying
 				fmt.Println(msgBackup.FileName)
+				msgBackup.FileSize = -1
 				msgBackup.Send(conn)
 				return
 			}
