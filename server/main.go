@@ -94,9 +94,7 @@ func handleConnection(conn net.Conn, backupServer string, fileHash map[string]st
 			handleSearch(msg, conn, fileHash)
 		} else if strings.EqualFold(msg.Operation, "delete") {
 			handleDelete(msg, conn, backupServer, fileHash)
-		} else {
-			break
-		}
+		} 
 	}
 }
 
@@ -148,6 +146,7 @@ func handlePut(msg message.Message, conn net.Conn, buffer *bufio.Reader, backupS
 		defer bconn.Close()
 
 		msg.CopyRemain -= 1
+		msg.FileName = fileName
 
 		err := utils.SendMsgAndFile(&msg, bconn)
 		if err != nil {
@@ -262,11 +261,12 @@ func handleSearch(msg message.Message, conn net.Conn, fileHash map[string]string
 		if fileHash[fileName] == "deleted" {
 			continue
 		}
+		strs := strings.Split(fileName, "/")
+		fileName = strs[len(strs) - 1]
 		if strings.Index(fileName, query) != -1 {
 			if len(queryRes) > 0 {
 				queryRes = append(queryRes, ", "...)
 			}
-			strs := strings.Split(fileName, "/")
 			queryRes = append(queryRes, strs[len(strs)-1]...)
 		}
 	}
