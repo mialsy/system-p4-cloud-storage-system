@@ -6,7 +6,7 @@ This file lets users make requests about different file storage operations inclu
 - search file
 User's inputs should include the following:
 - operation (put/ get/ delete/ search)
-- file name (optional for search, path to file for put)
+- file name (or file path to file for put)
 */
 
 package main
@@ -67,7 +67,6 @@ func main() {
 
 		msg := message.New(operation, fileName)
 
-		// Put operation: open file and find file size information, update size to message header and send message header to server, then send file
 		if strings.EqualFold(msg.Operation, "put") {
 			file, err := os.OpenFile(msg.FileName, os.O_RDONLY, 0666)
 			if err != nil {
@@ -95,15 +94,28 @@ func main() {
 
 		if strings.EqualFold(msg.Operation, "get") {
 			if handleGet(conn) {
-				fmt.Println("get success")
+				fmt.Println("File stored in your current working directory")
 			}
 		} else if strings.EqualFold(msg.Operation, "search") {
 			handleSearch(conn)
+		} else {
+			buffer := bufio.NewReader(conn)
+			decoder := gob.NewDecoder(buffer)
+			var msg message.Message
+			err := decoder.Decode(&msg)
+			check(err)
+			fmt.Println(msg.FileName)
 		}
 	} 
 }
 
-func handleGet(conn net.Conn) bool{
+
+/*
+Function to receive feedback and file from server when requesting get operation
+@param conn: the connection
+@return true if success, otherwise false
+*/
+func handleGet(conn net.Conn) bool {
 	buffer := bufio.NewReader(conn)
 	decoder := gob.NewDecoder(buffer)
 	var msg message.Message
@@ -131,6 +143,10 @@ func handleGet(conn net.Conn) bool{
 	return false
 }
 
+/*
+Function to list the search result from server when requesting search operation
+@param conn: the connection
+*/
 func handleSearch(conn net.Conn) {
 	buffer := bufio.NewReader(conn)
 	decoder := gob.NewDecoder(buffer)
