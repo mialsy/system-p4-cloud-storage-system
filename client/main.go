@@ -13,6 +13,7 @@ package main
 
 import (
 	"P4-siri/message"
+	"P4-siri/utils"
 	"bufio"
 	"encoding/gob"
 	"fmt"
@@ -75,26 +76,12 @@ func main() {
 		msg := message.New(operation, fileName)
 
 		if strings.EqualFold(msg.Operation, "put") {
-			file, err := os.OpenFile(msg.FileName, os.O_RDONLY, 0666)
+			err := utils.SendMsgAndFile(msg, conn)
 			if err != nil {
-				log.Println("open file error: " + err.Error())
+				// if send file fail, not receiving
+				log.Println(err.Error())
 				continue
 			}
-			defer file.Close()
-
-			stat, err := file.Stat()
-			check(err)
-			size := stat.Size()
-			msg.FileSize = size
-			buffer := bufio.NewWriter(conn)
-			encoder := gob.NewEncoder(buffer)
-			encoder.Encode(msg)
-			sz, err := io.Copy(buffer, file)
-			fmt.Println(sz)
-			if err != nil {
-				fmt.Println(err.Error())
-			}
-			buffer.Flush()
 		} else {
 			msg.Send(conn)
 		}
