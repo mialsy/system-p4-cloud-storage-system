@@ -42,10 +42,17 @@ func main() {
 		if result == false {
 			break
 		}
-		// Check result to make sure it's a legit request, then parse in relevant information (operation, file name/path) 
+		// Check result to make sure it's a legit request, then parse in relevant information (operation, file name/path)
 		request := scanner.Text()
-		if request == "exit" {
+
+		// preprocess exit and search without keyword
+		if strings.EqualFold(request, "exit") {
 			break
+		} else if strings.EqualFold(request, "search") {
+			msg := message.New(request, "")
+			msg.Send(conn)
+			handleSearch(conn)
+			continue
 		}
 		queryList := strings.Split(request, " ")
 
@@ -106,9 +113,8 @@ func main() {
 			check(err)
 			fmt.Println(msg.FileName)
 		}
-	} 
+	}
 }
-
 
 /*
 Function to receive feedback and file from server when requesting get operation
@@ -124,7 +130,7 @@ func handleGet(conn net.Conn) bool {
 		// able to get
 		fileName := msg.FileName
 		if msg.FileSize != 0 {
-			file, err := os.OpenFile(fileName, os.O_CREATE | os.O_TRUNC | os.O_RDWR, 0666)
+			file, err := os.OpenFile(fileName, os.O_CREATE|os.O_TRUNC|os.O_RDWR, 0666)
 			check(err)
 
 			sz, err := io.CopyN(file, buffer, msg.FileSize)
@@ -138,7 +144,7 @@ func handleGet(conn net.Conn) bool {
 			return false
 		}
 		return true
-	} 
+	}
 	fmt.Println("cannot decode: " + err.Error())
 	return false
 }
