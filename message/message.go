@@ -1,6 +1,6 @@
 /*
 This file defines Message struct which includes information about requested operation,
-file name, file size, and number of copy to make
+file name, file size, and number of copy to make.
 */
 package message
 

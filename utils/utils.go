@@ -1,5 +1,7 @@
 /*
 This file includes utils for the TCP storage system.
+Include funtions to send and receiving messages or message and files combo over the connection,
+and also error checking function
 */
 package utils
 
@@ -16,6 +18,12 @@ import (
 	"strings"
 )
 
+/*
+Function to send Message and file over the network
+@param msg: the msg to send over the connection
+@param conn: the connection
+@return: error message
+*/
 func SendMsgAndFile(msg *message.Message, conn net.Conn) error {
 	file, err := os.OpenFile(msg.FileName, os.O_RDONLY, 0666)
 	if err != nil {
@@ -52,6 +60,13 @@ func SendMsgAndFile(msg *message.Message, conn net.Conn) error {
 	return nil
 }
 
+
+/*
+Function to get Message and file over the network
+@param msg: the path to store the file
+@param conn: the connection
+@return: error message
+*/
 func GetMsgAndFile(path string, conn net.Conn) error {
 	buffer := bufio.NewReader(conn)
 	decoder := gob.NewDecoder(buffer)
@@ -90,6 +105,12 @@ func GetMsgAndFile(path string, conn net.Conn) error {
 }
 
 
+/*
+Function to get Message over the network
+@param msg: the path to store the file
+@param conn: the connection
+@return: feedback information from msg, error if there is any
+*/
 func GetMsg(conn net.Conn) (string, error) {
 	buffer := bufio.NewReader(conn)
 	decoder := gob.NewDecoder(buffer)
