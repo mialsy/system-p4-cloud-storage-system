@@ -30,6 +30,9 @@ func main() {
 		return
 	}
 
+	// set up logger
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
+
 	conn, err := net.Dial("tcp", argv[1])
 	utils.Check(err)
 	defer conn.Close()

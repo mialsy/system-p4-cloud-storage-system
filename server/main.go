@@ -39,6 +39,9 @@ func main() {
 		return
 	}
 
+	// set up logger
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
+
 	fileHash := make(map[string]string) // Map to store a file checksum
 	// Read checkFile to a map
 	if _, err := os.Stat(checkFile); err == nil {
