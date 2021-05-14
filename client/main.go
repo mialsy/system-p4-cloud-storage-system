@@ -13,10 +13,9 @@ package main
 
 import (
 	"P4-siri/message"
+	"P4-siri/utils"
 	"bufio"
-	"encoding/gob"
 	"fmt"
-	"io"
 	"log"
 	"net"
 	"os"
@@ -31,8 +30,11 @@ func main() {
 		return
 	}
 
+	// set up logger
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
+
 	conn, err := net.Dial("tcp", argv[1])
-	check(err)
+	utils.Check(err)
 	defer conn.Close()
 
 	for {
@@ -42,10 +44,22 @@ func main() {
 		if result == false {
 			break
 		}
-		// Check result to make sure it's a legit request, then parse in relevant information (operation, file name/path) 
+		// Check result to make sure it's a legit request, then parse in relevant information (operation, file name/path)
 		request := scanner.Text()
-		if request == "exit" {
+
+		// preprocess exit and search without keyword
+		if strings.EqualFold(request, "exit") {
 			break
+		} else if strings.EqualFold(request, "search") {
+			msg := message.New(request, "")
+			msg.Send(conn)
+
+			feedBack, err := utils.GetMsg(conn)
+			if err != nil {
+				log.Println(err.Error())
+			} 
+			fmt.Println(feedBack)
+			continue
 		}
 		queryList := strings.Split(request, " ")
 
@@ -68,108 +82,30 @@ func main() {
 		msg := message.New(operation, fileName)
 
 		if strings.EqualFold(msg.Operation, "put") {
-			file, err := os.OpenFile(msg.FileName, os.O_RDONLY, 0666)
+			err := utils.SendMsgAndFile(msg, conn)
 			if err != nil {
-				log.Println("open file error: " + err.Error())
+				// if send file fail, not receiving
+				log.Println(err.Error())
 				continue
 			}
-			defer file.Close()
-
-			stat, err := file.Stat()
-			check(err)
-			size := stat.Size()
-			msg.FileSize = size
-			buffer := bufio.NewWriter(conn)
-			encoder := gob.NewEncoder(buffer)
-			encoder.Encode(msg)
-			sz, err := io.Copy(buffer, file)
-			fmt.Println(sz)
-			if err != nil {
-				fmt.Println(err.Error())
-			}
-			buffer.Flush()
 		} else {
 			msg.Send(conn)
 		}
 
 		if strings.EqualFold(msg.Operation, "get") {
-			if handleGet(conn) {
-				fmt.Println("File stored in your current working directory")
+			err := utils.GetMsgAndFile(".", conn)
+			if err != nil {
+				log.Println(err.Error())
+			} else {
+				fmt.Println("success")
 			}
-		} else if strings.EqualFold(msg.Operation, "search") {
-			handleSearch(conn)
 		} else {
-			buffer := bufio.NewReader(conn)
-			decoder := gob.NewDecoder(buffer)
-			var msg message.Message
-			err := decoder.Decode(&msg)
-			check(err)
-			fmt.Println(msg.FileName)
-		}
-	} 
-}
-
-
-/*
-Function to receive feedback and file from server when requesting get operation
-@param conn: the connection
-@return true if success, otherwise false
-*/
-func handleGet(conn net.Conn) bool {
-	buffer := bufio.NewReader(conn)
-	decoder := gob.NewDecoder(buffer)
-	var msg message.Message
-	err := decoder.Decode(&msg)
-	if err == nil {
-		// able to get
-		fileName := msg.FileName
-		if msg.FileSize != 0 {
-			file, err := os.OpenFile(fileName, os.O_CREATE | os.O_TRUNC | os.O_RDWR, 0666)
-			check(err)
-
-			sz, err := io.CopyN(file, buffer, msg.FileSize)
-
-			if err != nil || sz != msg.FileSize {
-				fmt.Printf("copy error, size copied %d\n", sz)
+			feedBack, err := utils.GetMsg(conn)
+			if err != nil {
+				log.Println(err.Error())
+			} else {
+				fmt.Println(feedBack)
 			}
-			file.Close()
-		} else {
-			fmt.Println(msg.FileName)
-			return false
-		}
-		return true
-	} 
-	fmt.Println("cannot decode: " + err.Error())
-	return false
-}
-
-/*
-Function to list the search result from server when requesting search operation
-@param conn: the connection
-*/
-func handleSearch(conn net.Conn) {
-	buffer := bufio.NewReader(conn)
-	decoder := gob.NewDecoder(buffer)
-	var msg message.Message
-	err := decoder.Decode(&msg)
-	if err == nil {
-		if len(msg.FileName) != 0 {
-			fmt.Println("Query result: " + msg.FileName)
-		} else {
-			fmt.Println("No result found")
-		}
-	} else {
-		fmt.Println("cannot decode: " + err.Error())
-	}
-}
-
-/*
-Function to handle error by logging error message
-@param err: the error being checked
-*/
-func check(err error) {
-	if err != nil {
-		log.Fatalln(err.Error())
-		return
+		} 
 	}
 }

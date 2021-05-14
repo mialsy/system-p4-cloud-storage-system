@@ -16,11 +16,11 @@ package main
 
 import (
 	"P4-siri/message"
+	"P4-siri/utils"
 	"bufio"
 	"crypto/sha256"
 	"encoding/gob"
 	"encoding/hex"
-	"fmt"
 	"io"
 	"log"
 	"net"
@@ -28,22 +28,25 @@ import (
 	"strings"
 )
 
-const storj = "./storj" // Folder stores files from clients 
-const checkFile = "checkFile.txt" // File stores files' checksum 
+const storj = "./storj"           // Folder stores files from clients
+const checkFile = "checkFile.txt" // File stores files' checksum
 
 func main() {
 	argv := os.Args
 	if len(argv) != 3 {
-		fmt.Println("Incorrect number of arguments!")
-		fmt.Println("Usage: ./server hostname:portnumber backup_hostname:portnumber")
+		log.Println("Incorrect number of arguments!")
+		log.Println("Usage: ./server hostname:portnumber backup_hostname:portnumber")
 		return
 	}
+
+	// set up logger
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
 
 	fileHash := make(map[string]string) // Map to store a file checksum
 	// Read checkFile to a map
 	if _, err := os.Stat(checkFile); err == nil {
 		file, err := os.OpenFile(checkFile, os.O_RDONLY, 0666)
-		check(err)
+		utils.Check(err)
 		fscanner := bufio.NewScanner(file)
 		for fscanner.Scan() {
 			line := fscanner.Text()
@@ -56,7 +59,7 @@ func main() {
 	backupServer := argv[2]
 
 	listener, err := net.Listen("tcp", defaultServer)
-	check(err)
+	utils.Check(err)
 
 	for {
 		if conn, err := listener.Accept(); err == nil {
@@ -86,7 +89,7 @@ func handleConnection(conn net.Conn, backupServer string, fileHash map[string]st
 		if strings.EqualFold(msg.Operation, "put") {
 			handlePut(msg, conn, buffer, backupServer, fileHash)
 		} else if strings.EqualFold(msg.Operation, "get") {
-			handleGet(msg, conn, backupServer, fileHash)	
+			handleGet(msg, conn, backupServer, fileHash)
 		} else if strings.EqualFold(msg.Operation, "search") {
 			handleSearch(msg, conn, fileHash)
 		} else if strings.EqualFold(msg.Operation, "delete") {
@@ -100,7 +103,7 @@ func handleConnection(conn net.Conn, backupServer string, fileHash map[string]st
 /*
 Function to handle put operation: store received files in "storj" folder, if file already exist or backup server is down, then reject the request
 @param msg: message sent from client side
-@param buffer: the buffer 
+@param buffer: the buffer
 @param backupServer: hostname and port number of the backup server
 @param fileHash: map to store file name and its checksum value
 */
@@ -110,77 +113,85 @@ func handlePut(msg message.Message, conn net.Conn, buffer *bufio.Reader, backupS
 		os.Mkdir(storj, 0755)
 	}
 	filePath := strings.Split(msg.FileName, "/")
-	fileName := storj + "/" + filePath[len(filePath) - 1]
+	fileName := storj + "/" + filePath[len(filePath)-1]
 	val, present := fileHash[fileName]
-	
+
 	if present && !strings.EqualFold(val, "deleted") {
 		msg.FileName = "File already exists. Please delete the file to proceed with the operation."
+		msg.FileSize = -1
 		msg.Send(conn)
-	} else {
-		// Store the file
-		file, err := os.OpenFile(fileName, os.O_CREATE | os.O_TRUNC | os.O_RDWR, 0666)
-		check(err)
-		defer file.Close()
+		return
+	}
 
-		if _, err := io.CopyN(file, buffer, msg.FileSize); err != nil {
-			log.Fatalln(err.Error())
+	// Send message to backup server
+	if msg.CopyRemain > 0 {
+		bconn := connectBackup(backupServer)
+		if bconn == nil {
+			msg.FileName = "Sorry, can't perform request at this moment"
+			os.Remove(fileName)
+			msg.Send(conn)
+			return
+		}
+		defer bconn.Close()
+
+		msg.CopyRemain -= 1
+
+		err := utils.SendMsgAndFile(&msg, bconn)
+		if err != nil {
+			log.Println(err.Error())
+			return
+		}
+
+		feedBack, err := utils.GetMsg(bconn)
+		if err != nil {
+			// error saving on backup server
+			log.Println(err.Error())
+			msg.FileSize = -1
 			msg.FileName = err.Error()
 			msg.Send(conn)
-			return 
+			return
+		} else {
+			log.Println(feedBack)
 		}
-
-		// Send message to backup server
-		if msg.CopyRemain > 0 {
-			bconn := connectBackup(backupServer)
-			if bconn == nil {
-				msg.FileName = "Sorry, can't perform request at this moment"
-				os.Remove(fileName)
-				msg.Send(conn)
-				return 
-			}
-			defer bconn.Close()
-			
-			msg.CopyRemain -= 1
-
-			fileCopy, err := os.OpenFile(fileName, os.O_RDONLY, 0666)
-			check(err)
-			defer fileCopy.Close()
-
-			bbuffer := bufio.NewWriter(bconn)
-			encoder := gob.NewEncoder(bbuffer)
-			encoder.Encode(msg)
-			sz, err := io.Copy(bbuffer, fileCopy)
-			fmt.Println(sz)
-			if err != nil {
-				fmt.Println(err.Error())
-			}
-			bbuffer.Flush()
-		}
-
-		// Hash the file
-		value := hash(fileName)
-		fileHash[fileName] = value
-		fileStored, err := os.OpenFile(checkFile, os.O_APPEND | os.O_CREATE | os.O_WRONLY, 0644)
-		check(err)
-		defer fileStored.Close()
-		line := fileName + " " + value + "\n"
-		fileStored.WriteString(line)
-		msg.FileName = "File stored"
-		msg.Send(conn)
 	}
+
+	// Store the file
+	file, err := os.OpenFile(fileName, os.O_CREATE|os.O_TRUNC|os.O_RDWR, 0666)
+	utils.Check(err)
+	defer file.Close()
+
+	if _, err := io.CopyN(file, buffer, msg.FileSize); err != nil {
+		log.Fatalln(err.Error())
+		msg.FileSize = -1
+		msg.FileName = err.Error()
+		msg.Send(conn)
+		return
+	}
+
+	// Hash the file
+	value := hash(fileName)
+	fileHash[fileName] = value
+	fileStored, err := os.OpenFile(checkFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	utils.Check(err)
+	defer fileStored.Close()
+	line := fileName + " " + value + "\n"
+	fileStored.WriteString(line)
+	msg.FileName = "File stored"
+	msg.Send(conn)
+
 }
 
 /*
-Function to handle get operation request: find the file in "storj" folder and check its checksum. If the file is corrupted, contact backup server 
-to get the correct file then send the file to client. 
+Function to handle get operation request: find the file in "storj" folder and check its checksum. If the file is corrupted, contact backup server
+to get the correct file then send the file to client.
 @param msg: message sent from client side
 @param conn: the connection
 @param backupServer: hostname and port number of the backup server
 @param fileHash: map to store file name and its checksum value
 */
-func handleGet(msg message.Message, conn net.Conn, backupServer string, fileHash map[string]string)  {
+func handleGet(msg message.Message, conn net.Conn, backupServer string, fileHash map[string]string) {
 	filePath := strings.Split(msg.FileName, "/")
-	fileName := storj + "/" + filePath[len(filePath) - 1]
+	fileName := storj + "/" + filePath[len(filePath)-1]
 
 	expectedVal, isInMap := fileHash[fileName]
 
@@ -188,6 +199,7 @@ func handleGet(msg message.Message, conn net.Conn, backupServer string, fileHash
 		log.Println("no such file")
 		// not in the map, not able to do get
 		msg.FileName = "no such file"
+		msg.FileSize = -1
 		msg.Send(conn)
 		return
 	}
@@ -197,6 +209,7 @@ func handleGet(msg message.Message, conn net.Conn, backupServer string, fileHash
 	if expectedVal != actualVal && msg.CopyRemain == 0 {
 		// file broken
 		msg.FileName = "file broken"
+		msg.FileSize = -1
 		msg.Send(conn)
 		return
 	} else if expectedVal != actualVal && msg.CopyRemain > 0 {
@@ -204,70 +217,34 @@ func handleGet(msg message.Message, conn net.Conn, backupServer string, fileHash
 		bconn := connectBackup(backupServer)
 
 		if bconn == nil {
-			fmt.Println("backup off")
+			log.Println("backup off")
 			msg.FileName = "original file broken, backup off"
+			msg.FileSize = -1
 			msg.Send(conn)
-			return 
+			return
 		}
 		defer bconn.Close()
 
 		// send request to backup server
-		fmt.Println("send message")
+		log.Println("send message")
 		msg.CopyRemain -= 1
 
 		msg.Send(bconn)
 
-		readerBuffer := bufio.NewReader(bconn)
-		bdecoder := gob.NewDecoder(readerBuffer)
-		var msgBackup message.Message
-		err := bdecoder.Decode(&msgBackup)
+		err := utils.GetMsgAndFile(storj, bconn)
 
-		if err == nil {
-			// able to get
-			if msgBackup.FileSize != 0 {
-				fmt.Println("get from back up " + fileName)
-				file, err := os.OpenFile(fileName, os.O_CREATE | os.O_TRUNC | os.O_RDWR, 0666)
-				check(err)
-				file.Truncate(0)
-
-				sz, err := io.CopyN(file, readerBuffer, msgBackup.FileSize)
-
-				if err != nil || sz != msgBackup.FileSize {
-					log.Printf("copy error, size copied%d\n", sz)
-				}
-				file.Close()
-				file1, _ := os.OpenFile(fileName, os.O_RDONLY, 0666)
-
-				// if reaches here, should have the correct copy
-				stat1, _ := file1.Stat()
-				fmt.Println(stat1.Size())
-			} else {
-				// error copying
-				fmt.Println(msgBackup.FileName)
-				msgBackup.Send(conn)
-				return
-			}
-		}
-
-	} 
-	
-	file, err := os.OpenFile(fileName, os.O_RDONLY, 0666)
-
-	// if reaches here, should have the correct copy
-	stat, err := file.Stat()
-	check(err)
-	size := stat.Size()
-	msg.FileSize = size
-	buffer := bufio.NewWriter(conn)
-	encoder := gob.NewEncoder(buffer)
-	encoder.Encode(msg)
-	sz, err := io.Copy(buffer, file)
-	fmt.Println(sz)
-	if err != nil {
-		fmt.Println(err.Error())
+		// fail to get from backup as well
+		if err != nil {
+			log.Println(err.Error())
+			msg.FileSize = -1
+			msg.FileName = err.Error()
+			msg.Send(conn)
+			return
+		} 
 	}
-	buffer.Flush()
-	file.Close()
+
+	msg.FileName = fileName
+	utils.SendMsgAndFile(&msg, conn)
 }
 
 /*
@@ -281,27 +258,31 @@ func handleSearch(msg message.Message, conn net.Conn, fileHash map[string]string
 
 	queryRes := make([]byte, 0)
 
-	for fileName := range fileHash {	
+	for fileName := range fileHash {
 		if fileHash[fileName] == "deleted" {
 			continue
-		}	
+		}
 		if strings.Index(fileName, query) != -1 {
 			if len(queryRes) > 0 {
 				queryRes = append(queryRes, ", "...)
 			}
 			strs := strings.Split(fileName, "/")
-			queryRes = append(queryRes, strs[len(strs) - 1]...)
+			queryRes = append(queryRes, strs[len(strs)-1]...)
 		}
-	} 
-	msg.FileName = string(queryRes)
+	}
+	if len(queryRes) > 0 {
+		msg.FileName = "Query result: " + string(queryRes)
+	} else {
+		msg.FileName = "No matching result found."
+	}
 	msg.Send(conn)
 }
 
 /*
-Function to handle delete operation request: find the file in "storj" folder and delete files on both servers. If one of the servers is down, then reject the operation. 
+Function to handle delete operation request: find the file in "storj" folder and delete files on both servers. If one of the servers is down, then reject the operation.
 @param msg: message sent from client side
 @param conn: the connection
-@param backupServer: hostname and port number of the backup server 
+@param backupServer: hostname and port number of the backup server
 @param fileHash: map to store file name and its checksum value
 */
 func handleDelete(msg message.Message, conn net.Conn, backupServer string, fileHash map[string]string) {
@@ -324,10 +305,10 @@ func handleDelete(msg message.Message, conn net.Conn, backupServer string, fileH
 		}
 
 		err := os.Remove(fileName)
-		check(err)
+		utils.Check(err)
 		fileHash[fileName] = "deleted"
-		file, err := os.OpenFile(checkFile, os.O_APPEND | os.O_CREATE | os.O_WRONLY, 0644)
-		check(err)
+		file, err := os.OpenFile(checkFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		utils.Check(err)
 		defer file.Close()
 		line := fileName + " " + "deleted" + "\n"
 		file.WriteString(line)
@@ -338,14 +319,14 @@ func handleDelete(msg message.Message, conn net.Conn, backupServer string, fileH
 
 /*
 Function to connect with backup server
-@param backupServer: hostname and port number of the backup server 
+@param backupServer: hostname and port number of the backup server
 @return the connection
 */
 func connectBackup(backupServer string) net.Conn {
 	bconn, err := net.Dial("tcp", backupServer)
 
 	if err != nil {
-		fmt.Println(err.Error())
+		log.Println(err.Error())
 		return nil
 	}
 	return bconn
@@ -354,11 +335,11 @@ func connectBackup(backupServer string) net.Conn {
 /*
 Function to find the checksum of a file
 @param fileName: name of the file
-@return the checksum value of the file 
+@return the checksum value of the file
 */
 func hash(fileName string) string {
 	file, err := os.OpenFile(fileName, os.O_RDONLY, 0666)
-	check(err)
+	utils.Check(err)
 	defer file.Close()
 
 	hasher := sha256.New()
@@ -369,15 +350,3 @@ func hash(fileName string) string {
 	value := hex.EncodeToString(hasher.Sum(nil))
 	return value
 }
-
-/*
-Function to handle error by logging error message
-@param err: the error being checked
-*/
-func check(err error) {
-	if err != nil {
-		log.Fatalln(err.Error())
-		return
-	}
-}
-
