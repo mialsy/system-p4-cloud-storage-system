@@ -21,7 +21,6 @@ import (
 	"crypto/sha256"
 	"encoding/gob"
 	"encoding/hex"
-	"fmt"
 	"io"
 	"log"
 	"net"
@@ -35,8 +34,8 @@ const checkFile = "checkFile.txt" // File stores files' checksum
 func main() {
 	argv := os.Args
 	if len(argv) != 3 {
-		fmt.Println("Incorrect number of arguments!")
-		fmt.Println("Usage: ./server hostname:portnumber backup_hostname:portnumber")
+		log.Println("Incorrect number of arguments!")
+		log.Println("Usage: ./server hostname:portnumber backup_hostname:portnumber")
 		return
 	}
 
@@ -215,7 +214,7 @@ func handleGet(msg message.Message, conn net.Conn, backupServer string, fileHash
 		bconn := connectBackup(backupServer)
 
 		if bconn == nil {
-			fmt.Println("backup off")
+			log.Println("backup off")
 			msg.FileName = "original file broken, backup off"
 			msg.FileSize = -1
 			msg.Send(conn)
@@ -224,63 +223,25 @@ func handleGet(msg message.Message, conn net.Conn, backupServer string, fileHash
 		defer bconn.Close()
 
 		// send request to backup server
-		fmt.Println("send message")
+		log.Println("send message")
 		msg.CopyRemain -= 1
 
 		msg.Send(bconn)
 
-		readerBuffer := bufio.NewReader(bconn)
-		bdecoder := gob.NewDecoder(readerBuffer)
-		var msgBackup message.Message
-		err := bdecoder.Decode(&msgBackup)
+		err := utils.GetMsgAndFile(storj, bconn)
 
-		if err == nil {
-			// able to get
-			if msgBackup.FileSize != 0 {
-				fmt.Println("get from back up " + fileName)
-				file, err := os.OpenFile(fileName, os.O_CREATE|os.O_TRUNC|os.O_RDWR, 0666)
-				check(err)
-				file.Truncate(0)
-
-				sz, err := io.CopyN(file, readerBuffer, msgBackup.FileSize)
-
-				if err != nil || sz != msgBackup.FileSize {
-					log.Printf("copy error, size copied%d\n", sz)
-				}
-				file.Close()
-				file1, _ := os.OpenFile(fileName, os.O_RDONLY, 0666)
-
-				// if reaches here, should have the correct copy
-				stat1, _ := file1.Stat()
-				fmt.Println(stat1.Size())
-			} else {
-				// error copying
-				fmt.Println(msgBackup.FileName)
-				msgBackup.FileSize = -1
-				msgBackup.Send(conn)
-				return
-			}
-		}
-
+		// fail to get from backup as well
+		if err != nil {
+			log.Println(err.Error())
+			msg.FileSize = -1
+			msg.FileName = err.Error()
+			msg.Send(conn)
+			return
+		} 
 	}
 
-	file, err := os.OpenFile(fileName, os.O_RDONLY, 0666)
-
-	// if reaches here, should have the correct copy
-	stat, err := file.Stat()
-	check(err)
-	size := stat.Size()
-	msg.FileSize = size
-	buffer := bufio.NewWriter(conn)
-	encoder := gob.NewEncoder(buffer)
-	encoder.Encode(msg)
-	sz, err := io.Copy(buffer, file)
-	fmt.Println(sz)
-	if err != nil {
-		fmt.Println(err.Error())
-	}
-	buffer.Flush()
-	file.Close()
+	msg.FileName = fileName
+	utils.SendMsgAndFile(&msg, conn)
 }
 
 /*
@@ -358,7 +319,7 @@ func connectBackup(backupServer string) net.Conn {
 	bconn, err := net.Dial("tcp", backupServer)
 
 	if err != nil {
-		fmt.Println(err.Error())
+		log.Println(err.Error())
 		return nil
 	}
 	return bconn

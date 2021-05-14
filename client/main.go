@@ -90,7 +90,7 @@ func main() {
 		}
 
 		if strings.EqualFold(msg.Operation, "get") {
-			err := utils.GetMsgAndFile(conn)
+			err := utils.GetMsgAndFile(".", conn)
 			if err != nil {
 				log.Println(err.Error())
 			} else {

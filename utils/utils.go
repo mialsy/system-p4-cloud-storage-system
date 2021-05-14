@@ -12,6 +12,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"strings"
 )
 
 func SendMsgAndFile(msg *message.Message, conn net.Conn) error {
@@ -50,7 +51,7 @@ func SendMsgAndFile(msg *message.Message, conn net.Conn) error {
 	return nil
 }
 
-func GetMsgAndFile(conn net.Conn) error {
+func GetMsgAndFile(path string, conn net.Conn) error {
 	buffer := bufio.NewReader(conn)
 	decoder := gob.NewDecoder(buffer)
 	var msg message.Message
@@ -61,7 +62,8 @@ func GetMsgAndFile(conn net.Conn) error {
 	}
 
 	// able to get
-	fileName := msg.FileName
+	fnameArr := strings.Split(msg.FileName, "/")
+	fileName := path + "/" + fnameArr[len(fnameArr) - 1]
 	if msg.FileSize >= 0 {
 		file, err := os.OpenFile(fileName, os.O_CREATE|os.O_TRUNC|os.O_RDWR, 0666)
 
