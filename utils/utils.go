@@ -9,6 +9,7 @@ import (
 	"encoding/gob"
 	"errors"
 	"fmt"
+	"log"
 	"io"
 	"net"
 	"os"
@@ -103,5 +104,16 @@ func GetMsg(conn net.Conn) (string, error) {
 	} else {
 		// success
 		return msg.FileName, nil
+	}
+}
+
+
+/*
+Function to handle error by logging error message
+@param err: the error being checked
+*/
+func Check(err error) {
+	if err != nil {
+		log.Fatalln(err.Error())
 	}
 }

@@ -31,7 +31,7 @@ func main() {
 	}
 
 	conn, err := net.Dial("tcp", argv[1])
-	check(err)
+	utils.Check(err)
 	defer conn.Close()
 
 	for {
@@ -104,16 +104,5 @@ func main() {
 				fmt.Println(feedBack)
 			}
 		} 
-	}
-}
-
-/*
-Function to handle error by logging error message
-@param err: the error being checked
-*/
-func check(err error) {
-	if err != nil {
-		log.Fatalln(err.Error())
-		return
 	}
 }

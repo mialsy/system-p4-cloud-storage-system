@@ -43,7 +43,7 @@ func main() {
 	// Read checkFile to a map
 	if _, err := os.Stat(checkFile); err == nil {
 		file, err := os.OpenFile(checkFile, os.O_RDONLY, 0666)
-		check(err)
+		utils.Check(err)
 		fscanner := bufio.NewScanner(file)
 		for fscanner.Scan() {
 			line := fscanner.Text()
@@ -56,7 +56,7 @@ func main() {
 	backupServer := argv[2]
 
 	listener, err := net.Listen("tcp", defaultServer)
-	check(err)
+	utils.Check(err)
 
 	for {
 		if conn, err := listener.Accept(); err == nil {
@@ -154,7 +154,7 @@ func handlePut(msg message.Message, conn net.Conn, buffer *bufio.Reader, backupS
 
 	// Store the file
 	file, err := os.OpenFile(fileName, os.O_CREATE|os.O_TRUNC|os.O_RDWR, 0666)
-	check(err)
+	utils.Check(err)
 	defer file.Close()
 
 	if _, err := io.CopyN(file, buffer, msg.FileSize); err != nil {
@@ -169,7 +169,7 @@ func handlePut(msg message.Message, conn net.Conn, buffer *bufio.Reader, backupS
 	value := hash(fileName)
 	fileHash[fileName] = value
 	fileStored, err := os.OpenFile(checkFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	check(err)
+	utils.Check(err)
 	defer fileStored.Close()
 	line := fileName + " " + value + "\n"
 	fileStored.WriteString(line)
@@ -302,10 +302,10 @@ func handleDelete(msg message.Message, conn net.Conn, backupServer string, fileH
 		}
 
 		err := os.Remove(fileName)
-		check(err)
+		utils.Check(err)
 		fileHash[fileName] = "deleted"
 		file, err := os.OpenFile(checkFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-		check(err)
+		utils.Check(err)
 		defer file.Close()
 		line := fileName + " " + "deleted" + "\n"
 		file.WriteString(line)
@@ -336,7 +336,7 @@ Function to find the checksum of a file
 */
 func hash(fileName string) string {
 	file, err := os.OpenFile(fileName, os.O_RDONLY, 0666)
-	check(err)
+	utils.Check(err)
 	defer file.Close()
 
 	hasher := sha256.New()
@@ -346,15 +346,4 @@ func hash(fileName string) string {
 	}
 	value := hex.EncodeToString(hasher.Sum(nil))
 	return value
-}
-
-/*
-Function to handle error by logging error message
-@param err: the error being checked
-*/
-func check(err error) {
-	if err != nil {
-		log.Fatalln(err.Error())
-		return
-	}
 }
