@@ -25,7 +25,7 @@ The program has 2 components:
 
 ```console
 ./server <server address 1>:<port1> <server address 2>:<port2>
-./server <server address 2>:<port2> <server1 address>:<port1>
+./server <server address 2>:<port2> <server address 1>:<port1>
 ```
 
 The program supports the following requests:
@@ -43,19 +43,19 @@ Note that put and delete will not be supported while one server is down.
 
 - Put Operation: client sends a put request to save a file to the storage. If the file is saved on both of the servers, the client will get a message indicating so. If the file already exists, the client will be notified and asked to remove the file if he/she wants to proceed with the operation. If the backup server is down, the client's request will be rejected.
 
-<img src="ihttps://github.com/usf-cs521-sp21/P4-siri/blob/main/img/put.gif" alt="put output" width="700">
+<img src="https://github.com/usf-cs521-sp21/P4-siri/blob/main/img/put.gif" alt="put output" width="700">
 
 - Get Operation: client sends a get request to retrieve a file from the storage. If the file exists, the client will receive the file in their current working directory.
 
-<img src="ihttps://github.com/usf-cs521-sp21/P4-siri/blob/main/img/get.gif" alt="get output" width="700">
+<img src="https://github.com/usf-cs521-sp21/P4-siri/blob/main/img/get.gif" alt="get output" width="700">
 
 - Delete Operation: client sends a request to delete a file from the storage. If the file is deleted from both of the servers, the client will get a confirmation. If the backup server is down, client's request will be rejected.
 
-<img src="ihttps://github.com/usf-cs521-sp21/P4-siri/blob/main/img/delete.gif" alt="delete output" width="700">
+<img src="https://github.com/usf-cs521-sp21/P4-siri/blob/main/img/delete.gif" alt="delete output" width="700">
 
 - Search Operation: client can search to see the list of files in the storage or search by string to see the list of files whose names match the string.
 
-<img src="ihttps://github.com/usf-cs521-sp21/P4-siri/blob/main/img/search.gif" alt="search output" width="700">
+<img src="https://github.com/usf-cs521-sp21/P4-siri/blob/main/img/search.gif" alt="search output" width="700">
 
 ## **Included Files**
 
