@@ -267,7 +267,11 @@ func handleSearch(msg message.Message, conn net.Conn, fileHash map[string]string
 			queryRes = append(queryRes, strs[len(strs)-1]...)
 		}
 	}
-	msg.FileName = string(queryRes)
+	if len(queryRes) > 0 {
+		msg.FileName = "Query result: " + string(queryRes)
+	} else {
+		msg.FileName = "No matching result found."
+	}
 	msg.Send(conn)
 }
 
