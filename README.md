@@ -43,19 +43,19 @@ Note that put and delete will not be supported while one server is down.
 
 - Put Operation: client sends a put request to save a file to the storage. If the file is saved on both of the servers, the client will get a message indicating so. If the file already exists, the client will be notified and asked to remove the file if he/she wants to proceed with the operation. If the backup server is down, the client's request will be rejected.
 
-<img src="https://github.com/usf-cs521-sp21/P4-siri/blob/main/img/put.gif" alt="put output" height="500">
+<img src="https://github.com/usf-cs521-sp21/P4-siri/blob/main/img/put.gif" alt="put output">
 
 - Get Operation: client sends a get request to retrieve a file from the storage. If the file exists, the client will receive the file in their current working directory.
 
-<img src="https://github.com/usf-cs521-sp21/P4-siri/blob/main/img/get.gif" alt="get output" height="500">
+<img src="https://github.com/usf-cs521-sp21/P4-siri/blob/main/img/get.gif" alt="get output">
 
 - Delete Operation: client sends a request to delete a file from the storage. If the file is deleted from both of the servers, the client will get a confirmation. If the backup server is down, client's request will be rejected.
 
-<img src="https://github.com/usf-cs521-sp21/P4-siri/blob/main/img/delete.gif" alt="delete output" height="500">
+<img src="https://github.com/usf-cs521-sp21/P4-siri/blob/main/img/delete.gif" alt="delete output">
 
 - Search Operation: client can search to see the list of files in the storage or search by string to see the list of files whose names match the string.
 
-<img src="https://github.com/usf-cs521-sp21/P4-siri/blob/main/img/search.gif" alt="search output" height="500">
+<img src="https://github.com/usf-cs521-sp21/P4-siri/blob/main/img/search.gif" alt="search output">
 
 ## **Included Files**
 
