@@ -12,7 +12,7 @@ In this project, we are building a cloud storage system, `Storj`, similar to Dro
 ```
 
 ## **Program Overview**
-
+### Component of the program
 The program has 2 components:
 
 - Storage server: 2 are supported to handle requests from multiple clients, replicate files to the other server, detect and handle file corruption. To start the servers, run both of the following commands:
@@ -28,6 +28,23 @@ The program has 2 components:
 ./client <server address>:<port>
 ```
 
+### Server-Client Model
+As servers mirror each other, we design the server as each other's client. The relationship between server and client is shown as below.
+
+<img src="https://github.com/usf-cs521-sp21/P4-siri/blob/main/img/cllient_server_model.gif" alt="server client model">
+
+To ensure the storage safe, for put and delete request we always put and delete on both server during one request. Once a server is down, these two type of request will get rejected. If one server fail to put/delete file, the attempt would be considered failed. 
+
+<img src="https://github.com/usf-cs521-sp21/P4-siri/blob/main/img/cllient_server_model2.gif" alt="put and delete workflow">
+
+Different from these two requst, search and get can still be performed while the backup server gets down. For search requst, if file get corrupted, an attempt recovery would be performed. A get request would be send to the backup server to try retrive the file. Get only fail upon both copy broken.
+
+<img src="https://github.com/usf-cs521-sp21/P4-siri/blob/main/img/cllient_server_model3.gif" alt="search and get workflow">
+
+To ensure presistancy of meta data after servers get offline, we keep a checkFile.txt to store file storage info as well as hash value of the file. The file info would be write to checkFile every time a successful put/delete is performed.
+
+
+## **Program Options**
 The program supports the following requests:
 
 - Storage: clients can put any type of files to `Storj`
@@ -55,8 +72,6 @@ The program supports the following requests:
         ```
 
 Note that put and delete will not be supported while one server is down. And while search query allows partial matching, get and delete need to specify the complete file name.
-
-<!-- TODO: Insert flowchart (Chuxi) -->
 
 ## **Program Output** 
 
