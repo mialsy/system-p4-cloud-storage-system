@@ -32,9 +32,9 @@ The program supports the following requests:
 
 - Storage: clients can put any type of files to `Storj`
     - to store file, runs:
-    ```console
-    Storj>>> put <file full path>
-    ```
+        ```console
+        Storj>>> put <file full path>
+        ```
 - Retrieval: clients can get files from `Storj` as well as search and list the files in the system
     - to list all files, runs:
         ```console
