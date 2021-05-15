@@ -15,12 +15,6 @@ In this project, we are building a cloud storage system, `Storj`, similar to Dro
 
 The program has 2 components:
 
-- Client: sends requests to any of the 2 supported storage servers by supplying the storage server's hostname and port number as command line options at the start, whichever connection works
-
-```console
-./client <server address>:<port>
-```
-
 - Storage server: 2 are supported to handle requests from multiple clients, replicate files to the other server, detect and handle file corruption. To start the servers, run both of the following commands:
 
 ```console
@@ -28,14 +22,39 @@ The program has 2 components:
 ./server <server address 2>:<port2> <server address 1>:<port1>
 ```
 
+- Client: sends requests to any of the 2 supported storage servers by supplying the storage server's hostname and port number as command line options at the start, whichever connection works, to start client, run the following command:
+
+```console
+./client <server address>:<port>
+```
+
 The program supports the following requests:
 
 - Storage: clients can put any type of files to `Storj`
+    - to store file, runs:
+    ```console
+    Storj>>> put <file full path>
+    ```
 - Retrieval: clients can get files from `Storj` as well as search and list the files in the system
+    - to list all files, runs:
+        ```console
+        Storj>>> search 
+        ```
+    - to search file, runs:
+        ```console
+        Storj>>> search <query>
+        ```
+    - to get file, runs:
+        ```console
+        Storj>>> get <file name>
+        ```
 - Delete: client can delete files from `Storj`
+    - to list all files, runs:
+        ```console
+        Storj>>> delete <file name>
+        ```
 
-Note that put and delete will not be supported while one server is down.
-
+Note that put and delete will not be supported while one server is down. And while search query allows partial matching, get and delete need to specify the complete file name.
 
 <!-- TODO: Insert flowchart (Chuxi) -->
 
