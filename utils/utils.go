@@ -11,8 +11,8 @@ import (
 	"encoding/gob"
 	"errors"
 	"fmt"
-	"log"
 	"io"
+	"log"
 	"net"
 	"os"
 	"strings"
@@ -107,7 +107,6 @@ func GetMsgAndFile(path string, conn net.Conn) error {
 
 /*
 Function to get Message over the network
-@param msg: the path to store the file
 @param conn: the connection
 @return: feedback information from msg, error if there is any
 */

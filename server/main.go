@@ -101,6 +101,7 @@ func handleConnection(conn net.Conn, backupServer string, fileHash map[string]st
 /*
 Function to handle put operation: store received files in "storj" folder, if file already exist or backup server is down, then reject the request
 @param msg: message sent from client side
+@param conn: the connection 
 @param buffer: the buffer
 @param backupServer: hostname and port number of the backup server
 @param fileHash: map to store file name and its checksum value
