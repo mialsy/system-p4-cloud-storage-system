@@ -33,15 +33,15 @@ As servers mirror each other, we design the server as each other's client. The r
 
 <img src="https://github.com/usf-cs521-sp21/P4-siri/blob/main/img/cllient_server_model.gif" alt="server client model">
 
-To ensure the storage safe, for put and delete request we always put and delete on both server during one request. Once a server is down, these two type of request will get rejected. If one server fail to put/delete file, the attempt would be considered failed. 
+To ensure the storage safe, for put and delete request we always put and delete on both servers during one request. Once a server is down, these two types of request will be rejected. If one server fails to put/delete a file, the attempt would be considered failure. 
 
 <img src="https://github.com/usf-cs521-sp21/P4-siri/blob/main/img/cllient_server_model2.gif" alt="put and delete workflow">
 
-Different from these two requst, search and get can still be performed while the backup server gets down. For search requst, if file get corrupted, an attempt recovery would be performed. A get request would be send to the backup server to try retrive the file. Get only fail upon both copy broken.
+Different from put and delete requests, search and get can still be performed while the backup server is down. For search request, if the file is corrupted, an attempt recovery would be performed. A get request would be sent to the backup server to retrieve the file. Get request only fails when both copies are broken.
 
 <img src="https://github.com/usf-cs521-sp21/P4-siri/blob/main/img/cllient_server_model3.gif" alt="search and get workflow">
 
-To ensure presistancy of meta data after servers get offline, we keep a checkFile.txt to store file storage info as well as hash value of the file. The file info would be write to checkFile every time a successful put/delete is performed.
+To ensure resiliency of meta data after servers get offline, we keep a checkFile.txt to store file storage info as well as hash value of the file. The file info would be written to checkFile every time a successful put/delete is performed.
 
 
 ## **Program Options**
@@ -71,7 +71,7 @@ The program supports the following requests:
         Storj>>> delete <file name>
         ```
 
-Note that put and delete will not be supported while one server is down. And while search query allows partial matching, get and delete need to specify the complete file name.
+Note that put and delete will not be supported while one server is down. And while search query allows partial matching, get and delete need to specify the complete file name (including file extension).
 
 ## **Program Output** 
 
@@ -97,7 +97,7 @@ Following is the list of files included:
 
 - **client/main.go**: processes users' requests to connect with a certain server, perform file storage operations (put, get, delete, search), and receive acknowledgement from the connected server.
 - **server/main.go**: performs users' request on the server and the replica server.
-- **message/message.go**: includes definition of a struct to store file information and functions to send and recieve the struct over the network among clients and the 2 supported servers.
+- **message/message.go**: includes definition of a struct to store file information and functions to send the struct over the network among clients and the 2 supported servers.
 - **utils/utils.go**: includes utils for the TCP storage system, include funtions to send and receiving messages or message and files combo over the connection,
 and also error checking functions.
 - **clean.sh**: will remove the storj and checkFile, which reset the server.
